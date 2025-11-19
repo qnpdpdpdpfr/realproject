@@ -10,7 +10,8 @@ import re
 st.set_page_config(page_title="공공도서관 대출 데이터 대시보드", layout="wide")
 
 st.title("📚 공공도서관 대출 데이터 심층 분석")
-st.markdown("### 5개년(2020~2024) 대출 현황 인터랙티브 대시보드 (단위: 만 권)")
+# [수정] 제목에서 단위 정보 제거
+st.markdown("### 5개년(2020~2024) 대출 현황 인터랙티브 대시보드")
 st.markdown("---")
 
 # Plotly 그래프에서 사용할 한글 기준 매핑 딕셔너리 정의 (전역 변수로 유지)
@@ -20,6 +21,9 @@ criteria_mapping = {
     'Age': '연령',
     'Material': '자료유형'
 }
+# [수정] 단위 변경: 10만 권 (100,000)
+UNIT_DIVISOR = 100000 
+UNIT_LABEL = '10만 권'
 
 # -----------------------------------------------------------------------------
 # 2. 데이터 로드 및 전처리 함수 
@@ -51,7 +55,6 @@ def load_and_process_data():
                 df = pd.read_excel(file_path, engine='openpyxl', header=0)
                 df = df.iloc[1:].reset_index(drop=True)
 
-            region_col_name = df.columns[3]
             df['Region_Fixed'] = df.iloc[:, 3].astype(str).str.strip()
             df = df[df['Region_Fixed'] != 'nan']
 
@@ -94,13 +97,14 @@ def load_and_process_data():
     if not all_data: return pd.DataFrame()
         
     final_df = pd.concat(all_data, ignore_index=True)
-    final_df['Count_Man'] = final_df['Count'] / 10000 
+    # [수정] 대출 권수를 '10만 권' 단위로 변환
+    final_df['Count_Unit'] = final_df['Count'] / UNIT_DIVISOR 
     return final_df
 
 # -----------------------------------------------------------------------------
 # 3. 데이터 로드 실행
 # -----------------------------------------------------------------------------
-with st.spinner('⏳ 5개년 엑셀 파일 정밀 분석 및 데이터 통합 중...'):
+with st.spinner(f'⏳ 5개년 엑셀 파일 정밀 분석 및 데이터 통합 중 (단위: {UNIT_LABEL} 적용)...'):
     df = load_and_process_data()
 
 # -----------------------------------------------------------------------------
@@ -148,7 +152,7 @@ filtered_df = df[
 ]
 
 # -----------------------------------------------------------------------------
-# 5. 시각화 (개선된 UI: 100% 가로 폭, 그래프별 개별 필터)
+# 5. 시각화 (100% 가로 폭, 그래프별 개별 필터, 4개 기준별 시각화)
 # -----------------------------------------------------------------------------
 if filtered_df.empty:
     st.warning("선택한 조건의 데이터가 없습니다. 필터를 조정해 주세요.")
@@ -157,7 +161,7 @@ else:
     st.subheader("1. 연도별 대출 추세 분석 (기준별 개별 시각화)")
 
     # -------------------------------------------------------------
-    # Line Chart 생성 함수 (개별 필터를 포함하도록 수정)
+    # Line Chart 생성 함수 (개별 필터 및 정수 표기 반영)
     # -------------------------------------------------------------
     def create_individual_trend_chart(df_data, criteria_eng, unique_key):
         criteria_kor = criteria_mapping[criteria_eng]
@@ -168,8 +172,7 @@ else:
         # 해당 기준의 모든 고유 값 목록 생성
         all_options = sorted(df_data[criteria_eng].unique())
         
-        # 해당 기준을 필터링하는 멀티셀렉트 생성 (Key를 사용하여 독립성 보장)
-        # 기본값은 전체를 선택하거나, 너무 많으면 상위 10개만 선택
+        # 해당 기준을 필터링하는 멀티셀렉트 생성
         default_selection = all_options if len(all_options) < 10 else all_options[:10]
         
         selected_options = st.multiselect(
@@ -179,11 +182,8 @@ else:
             key=f"{unique_key}_filter"
         )
         
-        # 필터링된 데이터 준비
         df_filtered_by_criteria = df_data[df_data[criteria_eng].isin(selected_options)]
-        
-        # 데이터 집계
-        line_data = df_filtered_by_criteria.groupby(['Year', criteria_eng])['Count_Man'].sum().reset_index()
+        line_data = df_filtered_by_criteria.groupby(['Year', criteria_eng])['Count_Unit'].sum().reset_index()
         
         if line_data.empty:
             st.info(f"{criteria_kor}에 선택된 항목이 없어 그래프를 표시할 수 없습니다.")
@@ -193,26 +193,76 @@ else:
         fig = px.line(
             line_data,
             x='Year',
-            y='Count_Man', 
+            # [수정] y축을 '10만 권' 단위 컬럼으로 변경
+            y='Count_Unit', 
             color=criteria_eng,
             markers=True,
             title=f"**{criteria_kor}별 연간 대출 권수 변화**",
-            labels={'Count_Man': '대출 권수 (만 권)', 'Year': '연도'},
+            # [수정] Y축 레이블 변경
+            labels={'Count_Unit': f'대출 권수 ({UNIT_LABEL})', 'Year': '연도'},
             hover_name=criteria_eng
         )
         fig.update_xaxes(type='category')
-        fig.update_yaxes(tickformat='.1f') 
+        # [수정] Y축 표기를 정수형으로 표시
+        fig.update_yaxes(tickformat=',.0f') 
         
-        # [수정] st.columns(2)를 사용하지 않고 바로 출력하여 가로 꽉 채움
         st.plotly_chart(fig, use_container_width=True)
-        st.markdown("---") # 그래프 간 구분선 추가
+        st.markdown("---") 
 
     # -------------------------------------------------------------
-    # 4개 기준별 추세선 그래프 생성 (세로 배치)
+    # 4개 기준별 추세선 그래프 생성 (세로 배치, 가로 꽉 채움)
     # -------------------------------------------------------------
+    # [수정] 4개의 그래프를 순서대로 세로로 배치
     
     # 1. 지역별
     create_individual_trend_chart(filtered_df, 'Region', 'region_chart')
 
     # 2. 자료유형별
     create_individual_trend_chart(filtered_df, 'Material', 'material_chart')
+
+    # 3. 연령별
+    create_individual_trend_chart(filtered_df, 'Age', 'age_chart')
+
+    # 4. 주제별
+    create_individual_trend_chart(filtered_df, 'Subject', 'subject_chart')
+
+
+    # -------------------------------------------------------------
+    # 5-2. 상세 비교 (Bar Chart & Treemap)
+    # -------------------------------------------------------------
+    st.subheader("2. 주제, 연령, 자료유형별 상세 분포 분석")
+    
+    target_year = st.slider("분석 대상 연도 선택", 2020, 2024, 2024, key='bar_year_select')
+    bar_data = filtered_df[filtered_df['Year'] == target_year]
+
+    if not bar_data.empty:
+        col_bar, col_tree = st.columns([1.5, 1])
+
+        with col_bar:
+            st.markdown(f"**{target_year}년 지역별/주제별 대출 현황**")
+            # Bar Chart: '10만 권' 단위 사용 및 정수 표기
+            fig_bar = px.bar(
+                bar_data, x='Region', y='Count_Unit', color='Subject',
+                title=f"지역별 대출 분포 (주제 스택)",
+                labels={'Count_Unit': f'대출 권수 ({UNIT_LABEL})', 'Region': '지역', 'Subject': '주제'},
+                barmode='stack',
+            )
+            fig_bar.update_yaxes(tickformat=',.0f')
+            st.plotly_chart(fig_bar, use_container_width=True)
+            
+        with col_tree:
+            st.markdown(f"**{target_year}년 전체 대출 구성 비율**")
+            # Treemap: '10만 권' 단위 사용
+            fig_tree = px.treemap(
+                bar_data, 
+                path=['Material', 'Subject', 'Age'], 
+                values='Count_Unit',
+                title='자료유형 > 주제 > 연령별 비율'
+            )
+            fig_tree.update_layout(margin = dict(t=50, l=25, r=25, b=25))
+            st.plotly_chart(fig_tree, use_container_width=True)
+            
+
+    # 5-3. 데이터 테이블
+    with st.expander("원본 추출 데이터 테이블 확인 (필터 적용됨)"):
+        st.dataframe(filtered_df.sort_values(by=['Year', 'Region', 'Subject']), use_container_width=True)
