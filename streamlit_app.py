@@ -9,8 +9,8 @@ import re
 # -----------------------------------------------------------------------------
 st.set_page_config(page_title="공공도서관 대출 데이터 대시보드", layout="wide")
 
-st.title("📚 도서관 데이터 심층 분석 (주제/연령/자료유형)")
-st.markdown("### 5개년(2020~2024) 공공도서관 대출 현황 인터랙티브 대시보드")
+st.title("📚 공공도서관 대출 데이터 심층 분석")
+st.markdown("### 5개년(2020~2024) 대출 현황 인터랙티브 대시보드 (단위: 만 권)")
 st.markdown("---")
 
 # -----------------------------------------------------------------------------
@@ -44,13 +44,13 @@ def load_and_process_data():
         try:
             # 연도별 조건문: 헤더 행 구조가 다름
             if item['year'] >= 2023:
-                # 2023년 이후 (가정): 2행이 헤더, 5행부터 데이터 (R2=header, R3/R4=skip)
+                # 2023년 이후: 2행이 헤더, 5행부터 데이터 (R2=header, R3/R4=skip)
                 df = pd.read_excel(file_path, engine='openpyxl', header=1) 
                 df = df.iloc[2:].reset_index(drop=True)
             else:
-                # 2022년 이전 (가정): 1행이 헤더, 2행부터 데이터 (R1=header, R2=data start)
+                # 2022년 이전: 1행이 헤더, 2행부터 데이터 (R1=header, R2=data start)
                 df = pd.read_excel(file_path, engine='openpyxl', header=0)
-                df = df.iloc[1:].reset_index(drop=True) # R2(index 1)부터 데이터 시작 가정
+                df = df.iloc[1:].reset_index(drop=True)
 
             # 지역 컬럼 (D열 = 인덱스 3)
             region_col_name = df.columns[3]
@@ -114,6 +114,8 @@ def load_and_process_data():
         return pd.DataFrame()
         
     final_df = pd.concat(all_data, ignore_index=True)
+    # [수정] 대출 권수를 '만 권' 단위로 변환한 새 컬럼 생성
+    final_df['Count_Man'] = final_df['Count'] / 10000 
     return final_df
 
 # -----------------------------------------------------------------------------
@@ -185,42 +187,49 @@ filtered_df = df[
 if filtered_df.empty:
     st.warning("선택한 조건의 데이터가 없습니다. 필터를 조정해 주세요.")
 else:
-    # 5-1. 연도별 추세선 (Line Chart)
     st.header("📊 대출 현황 분석")
+    st.subheader("1. 연도별 대출 추세 분석 (4개 기준별)")
+
+    # -------------------------------------------------------------
+    # Line Chart 생성 함수 (반복되는 코드 간결화)
+    # -------------------------------------------------------------
+    def create_trend_chart(df_data, criteria_eng):
+        criteria_kor = criteria_mapping[criteria_eng]
+        line_data = df_data.groupby(['Year', criteria_eng])['Count_Man'].sum().reset_index()
+        
+        fig = px.line(
+            line_data,
+            x='Year',
+            # [수정] y축을 '만 권' 단위 컬럼으로 변경
+            y='Count_Man', 
+            color=criteria_eng,
+            markers=True,
+            title=f"**{criteria_kor}별 연간 대출 권수 변화**",
+            # [수정] Y축 레이블 및 hover_name 변경
+            labels={'Count_Man': '대출 권수 (만 권)', 'Year': '연도'},
+            hover_name=criteria_eng
+        )
+        fig.update_xaxes(type='category')
+        # [수정] Y축 표기를 소수점 한 자리 숫자로 표시 (e.g., 8.0, 10.5)
+        fig.update_yaxes(tickformat='.1f') 
+        return fig
     
-    # [수정됨] 추세선 기준 선택
-    st.subheader("1. 연도별 대출 추세 (시간 흐름 분석)")
-    # [수정됨] 사용자에게 보여줄 한글 기준 목록 생성
-    color_options_eng = ['Region', 'Subject', 'Age', 'Material']
-    color_options_kor = [criteria_mapping[c] for c in color_options_eng]
+    # -------------------------------------------------------------
+    # 4개 기준별 추세선 그래프 생성 (2x2 레이아웃)
+    # -------------------------------------------------------------
+    criteria_list = ['Region', 'Material', 'Age', 'Subject']
+    cols = st.columns(2)
     
-    # [수정됨] 라디오 버튼 용어 변경
-    selected_criteria_kor = st.radio("기준 선택", color_options_kor, index=0, horizontal=True)
-    # [수정됨] Plotly에서 사용할 영어 기준명 찾기
-    selected_criteria_eng = next(k for k, v in criteria_mapping.items() if v == selected_criteria_kor)
-    
-    line_data = filtered_df.groupby(['Year', selected_criteria_eng])['Count'].sum().reset_index()
-    
-    # [수정됨] 그래프 제목 변경 및 단위 명확화
-    fig_line = px.line(
-        line_data,
-        x='Year',
-        y='Count',
-        color=selected_criteria_eng,
-        markers=True,
-        title=f"**{selected_criteria_kor}별 연간 대출 권수 변화** (단위: 권)",
-        labels={'Count': '대출 권수 (권)', 'Year': '연도'},
-        hover_name=selected_criteria_eng
-    )
-    fig_line.update_xaxes(type='category')
-    # [추가] Y축 표기를 과학적 표기법(m, k) 대신 일반 숫자로 변경하여 직관성 개선
-    fig_line.update_yaxes(tickformat=',.0f')
-    st.plotly_chart(fig_line, use_container_width=True)
+    for i, criteria in enumerate(criteria_list):
+        with cols[i % 2]:
+            st.markdown(f"#### {criteria_mapping[criteria]}별 대출 추세")
+            fig = create_trend_chart(filtered_df, criteria)
+            st.plotly_chart(fig, use_container_width=True)
+
 
     st.markdown("---")
 
     # 5-2. 상세 비교 (Bar Chart & Treemap)
-    # [수정됨] 제목 변경
     st.subheader("2. 주제, 연령, 자료유형별 상세 분포 분석")
     
     # 사용자가 비교할 연도 선택
@@ -231,26 +240,24 @@ else:
         col_bar, col_tree = st.columns([1.5, 1])
 
         with col_bar:
-            # [수정됨] 제목 변경
             st.markdown(f"**{target_year}년 지역별/주제별 대출 현황**")
-            # Bar Chart: 지역별 & 주제별 스택
+            # Bar Chart: 지역별 & 주제별 스택 (만 권 단위 사용)
             fig_bar = px.bar(
-                bar_data, x='Region', y='Count', color='Subject',
+                bar_data, x='Region', y='Count_Man', color='Subject',
                 title=f"지역별 대출 분포 (주제 스택)",
                 barmode='stack',
-                labels={'Count': '대출 권수 (권)', 'Region': '지역', 'Subject': '주제'},
+                labels={'Count_Man': '대출 권수 (만 권)', 'Region': '지역', 'Subject': '주제'},
             )
-            fig_bar.update_yaxes(tickformat=',.0f')
+            fig_bar.update_yaxes(tickformat='.1f')
             st.plotly_chart(fig_bar, use_container_width=True)
             
         with col_tree:
-            # [수정됨] 제목 변경
             st.markdown(f"**{target_year}년 전체 대출 구성 비율**")
-            # Treemap: 비율 분석에 유용
+            # Treemap: 비율 분석에 유용 (만 권 단위 사용)
             fig_tree = px.treemap(
                 bar_data, 
                 path=['Material', 'Subject', 'Age'], 
-                values='Count',
+                values='Count_Man',
                 title='자료유형 > 주제 > 연령별 비율'
             )
             fig_tree.update_layout(margin = dict(t=50, l=25, r=25, b=25))
