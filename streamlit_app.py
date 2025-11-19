@@ -310,19 +310,20 @@ st.markdown("---")
 st.subheader("2. 상세 분포 분석 (특정 연도)")
 
 # 6. 공통 연도 로컬 필터링 컨트롤러 (슬라이더 크기 개선)
-col_year_header, col_year_metric = st.columns([1, 4])
-with col_year_header:
-    st.header("기준 연도")
-with col_year_metric:
+col_slider, col_metric = st.columns([4, 1])
+with col_slider:
     # 연도 슬라이더
+    st.markdown("#### 분석 기준 연도 선택")
     target_year = st.slider(
         "분석 대상 연도 선택", 
         2020, 2024, 2024, 
         key='detail_year_select_6',
-        label_visibility="collapsed" # 레이블을 숨깁니다.
+        label_visibility="collapsed"
     )
+with col_metric:
     # 선택된 연도를 Metric으로 강조하여 시각적으로 크게 보입니다.
-    st.metric(label="선택된 연도", value=f"{target_year}년") 
+    st.markdown("#### 선택 연도")
+    st.metric(label="선택된 연도", value=f"{target_year}년", label_visibility="collapsed") 
 
 st.markdown("---") # 시각적 분리
 
@@ -332,7 +333,7 @@ if not detail_data.empty:
     
     # --- 6-A. 지역별 순위 --- (인구 10만 명당 순위)
     st.markdown(f"### {target_year}년 지역별 대출 순위 (인구 10만 명당)")
-    st.caption("✅ **의미 강화:** 절대 권수가 아닌 **인구 10만 명당 대출 권수**를 기준으로 순위를 매겨 지역별 비교의 의미를 높였습니다.")
+    # ✅ 인구 10만 명당 대출 권수를 기준으로 순위를 매겨 지역별 비교의 의미를 높였습니다. -> 요청에 따라 이 캡션 제거됨
     
     regional_data_per_capita = detail_data.groupby('Region')['Count_Per_Capita'].sum().reset_index()
     
@@ -357,14 +358,12 @@ if not detail_data.empty:
     
     col_material_filter, col_spacer = st.columns([1, 4])
     with col_material_filter:
-        # 시각화 기준에서 '모양(주제 분야)'를 제거했습니다.
         st.caption("📌 **시각화 기준:** X(**연령대**), Y(대출량), 크기(대출량), 색상(**자료유형**)")
         
     # 그룹화: 이제 Subject는 시각화 요소가 아니므로 Age와 Material 기준으로만 그룹화합니다.
     scatter_data = detail_data.groupby(['Age', 'Material'])['Count_Unit'].sum().reset_index()
     
     # 명확한 범례 설명을 위한 캡션 추가
-    # 모양 범례를 제거하고 색상 범례만 남겼습니다.
     st.caption("✅ **범례 설명:** **색상**으로 자료유형(인쇄 vs 전자)을 구분하며, 점의 크기와 Y축이 클수록 해당 연령대와 자료유형의 대출량이 많음을 의미합니다. (점의 모양은 고정된 원입니다.)")
     
     # 다차원 산점도 (Scatter Plot) 생성
@@ -404,10 +403,10 @@ if not detail_data.empty:
         st.markdown(f"### {target_year}년 대출 비율 분석 (Pie Chart)")
         st.caption("✅ **기준:** 상단의 연도 슬라이더에 따라 비율이 변경됩니다.")
         
-        # 6-C 로컬 필터링 컨트롤러: 기준 선택 (기존 유지)
+        # 6-C 로컬 필터링 컨트롤러: 기준 선택 (지역, 주제 분야 추가됨)
         pie_type = st.radio(
             "비율 분석 기준 선택",
-            ('자료 유형 (인쇄/전자)', '연령대'),
+            ('자료 유형 (인쇄/전자)', '연령대', '지역', '주제 분야'),
             key='pie_chart_criteria_6_C',
             horizontal=True
         )
@@ -417,11 +416,21 @@ if not detail_data.empty:
             names_col = 'Material'
             title = f"{target_year}년 자료 유형 (인쇄 vs 전자) 비율"
             colors = px.colors.sequential.RdBu
-        else:
+        elif pie_type == '연령대':
             pie_data = detail_data.groupby('Age')['Count_Unit'].sum().reset_index()
             names_col = 'Age'
             title = f"{target_year}년 연령대별 대출 권수 비율"
             colors = px.colors.qualitative.Vivid
+        elif pie_type == '지역': # '지역' 기준 추가
+            pie_data = detail_data.groupby('Region')['Count_Unit'].sum().reset_index()
+            names_col = 'Region'
+            title = f"{target_year}년 지역별 대출 권수 비율"
+            colors = px.colors.qualitative.Bold
+        elif pie_type == '주제 분야': # '주제 분야' 기준 추가
+            pie_data = detail_data.groupby('Subject')['Count_Unit'].sum().reset_index()
+            names_col = 'Subject'
+            title = f"{target_year}년 주제 분야별 대출 권수 비율"
+            colors = px.colors.qualitative.Pastel
 
         fig_pie = px.pie(
             pie_data,
