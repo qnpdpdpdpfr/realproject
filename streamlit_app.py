@@ -52,7 +52,6 @@ def load_and_process_data():
     ]
     data_dir = "data"
     all_data = []
-    # '총류', '철학', ... 등의 주제는 데이터 추출 시 여전히 필요합니다.
     target_subjects = ['총류', '철학', '종교', '사회과학', '순수과학', '기술과학', '예술', '언어', '문학', '역사']
     target_ages = ['어린이', '청소년', '성인']
 
@@ -62,14 +61,12 @@ def load_and_process_data():
 
         try:
             if item['year'] >= 2023:
-                # 2023년 이후 파일은 헤더 구조가 다름
                 df = pd.read_excel(file_path, engine='openpyxl', header=1)
                 df = df.iloc[2:].reset_index(drop=True)
             else:
                 df = pd.read_excel(file_path, engine='openpyxl', header=0)
                 df = df.iloc[1:].reset_index(drop=True)
 
-            # 지역명 추출 (4번째 컬럼 가정)
             df['Region_Fixed'] = df.iloc[:, 3].astype(str).str.strip()
             df = df[df['Region_Fixed'] != 'nan']
         except Exception: continue
@@ -96,7 +93,7 @@ def load_and_process_data():
                             'Year': item['year'],
                             'Region': region_name,
                             'Material': mat_type,
-                            'Subject': subject, # 데이터에는 Subject를 유지합니다.
+                            'Subject': subject,
                             'Age': age,
                             'Count': val 
                         })
@@ -110,14 +107,12 @@ def load_and_process_data():
     final_df = pd.concat(all_data, ignore_index=True)
     final_df['Count_Unit'] = final_df['Count'] / UNIT_DIVISOR 
     
-    # 🚨 인구당 대출 권수 계산
+    # 인구당 대출 권수 계산
     def calculate_per_capita(row):
         year = row['Year']
         region = row['Region']
         count = row['Count']
-        # 인구수 (만 명 단위) * 10000 = 실제 인구수
         population = REGION_POPULATION.get(region, {}).get(year, 1) * 10000 
-        # 인구 10만 명당 대출 권수 = (총 대출 권수 / 실제 인구수) * 100,000
         return count / population * 100000 if population > 0 else 0
         
     final_df['Count_Per_Capita'] = final_df.apply(calculate_per_capita, axis=1)
@@ -145,11 +140,9 @@ st.subheader("1. 연도별 대출 추세 분석")
 st.markdown("---") 
 
 # -------------------------------------------------------------
-# 5-1. 지역별 연간 대출 추세 (라인 차트) - 지역 필터 적용
+# 5-1. 지역별 연간 대출 추세
 # -------------------------------------------------------------
-st.markdown("### 지역별 연간 대출 추세") # (라인 차트) 제거됨
-
-# st.caption("✅ **필터 적용 기준:** **지역**") # 캡션 제거됨
+st.markdown("### 지역별 연간 대출 추세")
 
 # 5-1 로컬 필터링 컨트롤러: 지역
 all_regions = sorted(base_df['Region'].unique())
@@ -184,11 +177,9 @@ else:
 st.markdown("---") 
     
 # -------------------------------------------------------------
-# 5-2. 자료유형별 연간 추세 (Stacked Bar Chart 고정) - 자료 유형 필터 적용
+# 5-2. 자료유형별 연간 추세
 # -------------------------------------------------------------
 st.markdown("### 자료유형별 연간 대출 추세")
-
-# st.caption("✅ **필터 적용 기준:** **자료 유형**") # 캡션 제거됨
 
 # 5-2 로컬 필터링 컨트롤러: 자료 유형
 all_materials = sorted(base_df['Material'].unique())
@@ -226,11 +217,9 @@ st.markdown("---")
 
 
 # -------------------------------------------------------------
-# 5-3. 연령별 연간 추세 (Grouped Bar Chart) - 연령대 필터 적용
+# 5-3. 연령별 연간 추세
 # -------------------------------------------------------------
-st.markdown("### 연령별 연간 대출 추세") # (Grouped Bar Chart) 제거됨
-
-# st.caption("✅ **필터 적용 기준:** **연령대**") # 캡션 제거됨
+st.markdown("### 연령별 연간 대출 추세")
 
 # 5-3 로컬 필터링 컨트롤러: 연령대
 all_ages = sorted(base_df['Age'].unique())
@@ -267,13 +256,11 @@ st.markdown("---")
 
 
 # -------------------------------------------------------------
-# 5-4. 주제별 연간 추세 (Line Chart) - 주제 분야 필터 적용
+# 5-4. 주제별 연간 추세
 # -------------------------------------------------------------
-st.markdown("### 주제별 연간 대출 추세") # (Line Chart) 제거됨
+st.markdown("### 주제별 연간 대출 추세")
 
-# st.caption("✅ **필터 적용 기준:** **주제 분야**") # 캡션 제거됨
-
-# 5-4 로컬 필터링 컨트롤러: 주제 분야 및 순서 정의 (6-B에서 재사용)
+# 5-4 로컬 필터링 컨트롤러: 주제 분야 및 순서 정의
 all_subjects = base_df['Subject'].unique()
 subject_order = ['총류', '철학', '종교', '사회과학', '순수과학', '기술과학', '예술', '언어', '문학', '역사']
 sorted_subjects = [s for s in subject_order if s in all_subjects]
@@ -309,14 +296,13 @@ st.markdown("---")
 
 
 # -------------------------------------------------------------
-# 6. 상세 분포 분석 (특정 연도)
+# 6. 상세 분포 분석
 # -------------------------------------------------------------
-st.subheader("2. 상세 분포 분석") # (특정 연도) 제거됨
+st.subheader("2. 상세 분포 분석") 
 
-# 6. 공통 연도 로컬 필터링 컨트롤러 (슬라이더 크기 개선)
+# 6. 공통 연도 로컬 필터링 컨트롤러
 col_slider, col_metric = st.columns([4, 1])
 with col_slider:
-    # 연도 슬라이더
     st.markdown("#### 분석 기준 연도 선택")
     target_year = st.slider(
         "분석 대상 연도 선택", 
@@ -325,7 +311,6 @@ with col_slider:
         label_visibility="collapsed"
     )
 with col_metric:
-    # 선택된 연도를 Metric으로 강조하여 시각적으로 크게 보입니다.
     st.markdown("#### 선택 연도")
     st.metric(label="선택된 연도", value=f"{target_year}년", label_visibility="collapsed") 
 
@@ -335,106 +320,115 @@ detail_data = base_df[base_df['Year'] == target_year]
 
 if not detail_data.empty:
     
-    # --- 6-A. 지역별 순위 --- (인구 10만 명당 순위)
-    st.markdown(f"### {target_year}년 지역별 대출 순위 (인구 10만 명당)")
+    # --- New 6-A. 연령대별 자료 유형 선호도 (Stacked Bar Chart) ---
+    st.markdown(f"### 📊 {target_year}년 연령대별 자료 유형 선호도")
     
-    # st.caption("✅ **의미 강화:** 절대 권수가 아닌 **인구 10만 명당 대출 권수**를 기준으로 순위를 매겨 지역별 비교의 의미를 높였습니다.") # 캡션 제거됨
+    material_preference_data = detail_data.groupby(['Age', 'Material'])['Count_Unit'].sum().reset_index()
     
-    regional_data_per_capita = detail_data.groupby('Region')['Count_Per_Capita'].sum().reset_index()
-    
-    fig_bar_regional = px.bar(
-        regional_data_per_capita.sort_values('Count_Per_Capita', ascending=False), 
-        x='Region', 
-        y='Count_Per_Capita', 
-        color='Region',
-        title=f"지역별 인구 10만 명당 총 대출 권수 순위 ({target_year}년)",
-        labels={'Count_Per_Capita': '인구 10만 명당 대출 권수', 'Region': '지역'},
-        color_discrete_sequence=px.colors.qualitative.Bold
+    fig_mat_pref = px.bar(
+        material_preference_data, 
+        x='Age', 
+        y='Count_Unit', 
+        color='Material',
+        barmode='stack',
+        title=f"연령대별 인쇄 자료 vs 전자 자료 대출량 비교 ({target_year}년)",
+        labels={'Count_Unit': f'총 대출 권수 ({UNIT_LABEL})', 'Age': '연령대', 'Material': '자료 유형'},
+        category_orders={"Age": ['어린이', '청소년', '성인']},
+        color_discrete_sequence=px.colors.sequential.RdBu
     )
-    fig_bar_regional.update_yaxes(tickformat=',.0f')
-    st.plotly_chart(fig_bar_regional, use_container_width=True)
+    fig_mat_pref.update_yaxes(tickformat=',.0f')
+    st.plotly_chart(fig_mat_pref, use_container_width=True)
+    st.markdown("---") 
+    
+    # --- New 6-B. 연령대별 주제 분야 선호도 (Grouped Bar Chart) ---
+    st.markdown(f"### 📖 {target_year}년 연령대별 주제 분야 선호도")
+
+    subject_preference_data = detail_data.groupby(['Age', 'Subject'])['Count_Unit'].sum().reset_index()
+    
+    fig_subj_pref = px.bar(
+        subject_preference_data,
+        x='Subject',
+        y='Count_Unit',
+        color='Age',
+        barmode='group', 
+        title=f"주제 분야별 연령대별 대출 권수 비교 ({target_year}년)",
+        labels={'Count_Unit': f'총 대출 권수 ({UNIT_LABEL})', 'Subject': '주제 분야', 'Age': '연령대'},
+        category_orders={"Age": ['어린이', '청소년', '성인'], "Subject": subject_order},
+        color_discrete_sequence=px.colors.qualitative.Pastel
+    )
+    fig_subj_pref.update_xaxes(tickangle=45)
+    fig_subj_pref.update_yaxes(tickformat=',.0f') 
+    st.plotly_chart(fig_subj_pref, use_container_width=True)
     st.markdown("---") 
 
     # -------------------------------------------------------------------------
-    # 💥 6-B. 다차원 산점도(Multi-dimensional Scatter Plot) - 주제 제거 반영
-    # (X=Age, Y=Count, Color=Material, Symbol=FIXED, Size=Count)
+    # 6-C. 연령별/자료유형별 상세 분포 (기존 Scatter Plot)
     # -------------------------------------------------------------------------
-    st.markdown(f"### 🎯 {target_year}년 연령별/자료유형별 상세 분포 (산점도)")
+    st.markdown(f"### 🎯 {target_year}년 연령별/자료유형별 상세 분포") # (산점도) 제거됨
     
-    col_material_filter, col_spacer = st.columns([1, 4])
-    with col_material_filter:
-        pass # st.caption("📌 **시각화 기준: ...") 제거됨
-        
-    # 그룹화: 이제 Subject는 시각화 요소가 아니므로 Age와 Material 기준으로만 그룹화합니다.
+    # 그룹화: Age와 Material 기준으로만 그룹화합니다.
     scatter_data = detail_data.groupby(['Age', 'Material'])['Count_Unit'].sum().reset_index()
-    
-    # st.caption("✅ **범례 설명:** **색상으로 ...") # 캡션 제거됨
     
     # 다차원 산점도 (Scatter Plot) 생성
     fig_multi_scatter = px.scatter(
         scatter_data,
-        x='Age',          # X축: 연령 (요청에 따라 변경)
-        y='Count_Unit',   # Y축: 대출 권수
-        color='Material', # 색상: 자료 유형 (인쇄/전자)
-        # symbol 인자 제거됨 (모양 고정)
-        size='Count_Unit', # 크기: 대출 권수 (양을 시각적으로 강조)
-        size_max=70,       # 점의 크기를 대폭 확대
+        x='Age',          
+        y='Count_Unit',   
+        color='Material', 
+        size='Count_Unit', 
+        size_max=70,       
         hover_data=['Count_Unit'],
-        title=f"{target_year}년 대출 상세 분포 (연령대 x 대출량 x 자료유형)",
+        title=f"대출 상세 분포 (연령대 x 대출량 x 자료유형) ({target_year}년)",
         labels={
             'Count_Unit': f'총 대출 권수 ({UNIT_LABEL})',
             'Material': '자료유형',
             'Age': '연령대'
         },
         category_orders={
-            "Age": ['어린이', '청소년', '성인'], # 연령대 순서 고정
+            "Age": ['어린이', '청소년', '성인'], 
         },
         color_discrete_sequence=px.colors.qualitative.Dark24 
     )
 
-    # 축 레이블 회전 및 레이아웃 조정
     fig_multi_scatter.update_xaxes(type='category', categoryorder='array', categoryarray=['어린이', '청소년', '성인'])
     fig_multi_scatter.update_yaxes(tickformat=',.0f')
     fig_multi_scatter.update_layout(height=600, legend_title_text='자료유형 (색상)')
-    # 모든 점이 원으로 표시됩니다.
     fig_multi_scatter.update_traces(marker=dict(line=dict(width=1, color='DarkSlateGrey')), opacity=0.8)
 
     st.plotly_chart(fig_multi_scatter, use_container_width=True)
     st.markdown("---") 
 
-    # --- 6-C. Pie Chart ---
+    # --- 6-D. 대출 비율 분석 (기존 Pie Chart) ---
     with st.container():
-        st.markdown(f"### {target_year}년 대출 비율 분석 (Pie Chart)")
+        st.markdown(f"### {target_year}년 대출 비율 분석") # (Pie Chart) 제거됨
         
-        # st.caption("✅ **기준:** 상단의 연도 슬라이더에 따라 비율이 변경됩니다.") # 캡션 제거됨
-        
-        # 6-C 로컬 필터링 컨트롤러: 기준 선택 (지역, 주제 분야 추가됨)
+        # 6-D 로컬 필터링 컨트롤러: 기준 선택
         pie_type = st.radio(
             "비율 분석 기준 선택",
             ('자료 유형 (인쇄/전자)', '연령대', '지역', '주제 분야'),
-            key='pie_chart_criteria_6_C',
+            key='pie_chart_criteria_6_D',
             horizontal=True
         )
 
         if pie_type == '자료 유형 (인쇄/전자)':
             pie_data = detail_data.groupby('Material')['Count_Unit'].sum().reset_index()
             names_col = 'Material'
-            title = f"{target_year}년 자료 유형 (인쇄 vs 전자) 비율"
+            title = f"자료 유형 (인쇄 vs 전자) 비율 ({target_year}년)"
             colors = px.colors.sequential.RdBu
         elif pie_type == '연령대':
             pie_data = detail_data.groupby('Age')['Count_Unit'].sum().reset_index()
             names_col = 'Age'
-            title = f"{target_year}년 연령대별 대출 권수 비율"
+            title = f"연령대별 대출 권수 비율 ({target_year}년)"
             colors = px.colors.qualitative.Vivid
-        elif pie_type == '지역': # '지역' 기준 추가
+        elif pie_type == '지역': 
             pie_data = detail_data.groupby('Region')['Count_Unit'].sum().reset_index()
             names_col = 'Region'
-            title = f"{target_year}년 지역별 대출 권수 비율"
+            title = f"지역별 대출 권수 비율 ({target_year}년)"
             colors = px.colors.qualitative.Bold
-        elif pie_type == '주제 분야': # '주제 분야' 기준 추가
+        elif pie_type == '주제 분야': 
             pie_data = detail_data.groupby('Subject')['Count_Unit'].sum().reset_index()
             names_col = 'Subject'
-            title = f"{target_year}년 주제 분야별 대출 권수 비율"
+            title = f"주제 분야별 대출 권수 비율 ({target_year}년)"
             colors = px.colors.qualitative.Pastel
 
         fig_pie = px.pie(
