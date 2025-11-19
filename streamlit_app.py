@@ -13,16 +13,9 @@ st.title("📚 공공도서관 대출 데이터 심층 분석")
 st.markdown("### 5개년(2020~2024) 대출 현황 인터랙티브 대시보드")
 st.markdown("---")
 
-# Plotly 그래프에서 사용할 한글 기준 매핑 딕셔너리 정의
-criteria_mapping = {
-    'Region': '지역',
-    'Subject': '주제',
-    'Age': '연령',
-    'Material': '자료유형'
-}
-# 단위 설정: 시각화 레이블에만 사용 (백만 권 단위 표시용)
-MILLION_UNIT_DIVISOR = 1000000 
-MILLION_UNIT_LABEL = '백만 권'
+# [수정] 단위 설정: 다시 10만 권 (100,000)으로 복구
+UNIT_DIVISOR = 100000 
+UNIT_LABEL = '10만 권'
 
 # 지도시각화를 위한 지역별 중심 좌표 (대표적인 시/도 중심 좌표)
 REGION_COORDS = {
@@ -53,37 +46,56 @@ def load_and_process_data():
 
     for item in files:
         file_path = os.path.join(data_dir, item['file'])
-        
         if not os.path.exists(file_path): continue
 
         try:
-            if item['year'] >= 2023:
+            # 헤더/시작 행 처리 (연도별 파일 구조 차이 반영)
+            if item['year'] == 2020:
+                df = pd.read_excel(file_path, engine='openpyxl', header=0)
+                df = df.iloc[1:].reset_index(drop=True)
+                # 2020년 파일은 4번째 컬럼이 지역
+                df['Region_Fixed'] = df.iloc[:, 3].astype(str).str.strip()
+            elif item['year'] >= 2023:
                 df = pd.read_excel(file_path, engine='openpyxl', header=1) 
                 df = df.iloc[2:].reset_index(drop=True)
+                # 2023년 이후 파일은 4번째 컬럼이 지역 (인덱스 3)
+                df['Region_Fixed'] = df.iloc[:, 3].astype(str).str.strip()
             else:
                 df = pd.read_excel(file_path, engine='openpyxl', header=0)
                 df = df.iloc[1:].reset_index(drop=True)
+                # 2021~2022년 파일은 4번째 컬럼이 지역
+                df['Region_Fixed'] = df.iloc[:, 3].astype(str).str.strip()
 
-            df['Region_Fixed'] = df.iloc[:, 3].astype(str).str.strip()
-            df = df[df['Region_Fixed'] != 'nan']
 
-        except Exception: continue
+            df = df[df['Region_Fixed'].isin(REGION_COORDS.keys())] # 유효한 지역만 필터링
+
+        except Exception as e: 
+            st.error(f"Error processing {item['year']} data: {e}")
+            continue
         
         extracted_rows = []
-
+        
+        # [수정] 정확한 컬럼 이름 패턴을 사용하여 중복 합산 방지 및 데이터 추출
         for col in df.columns:
-            col_str = str(col)
+            col_str = str(col).strip()
+            
+            # 자료 유형 및 연령 추출
             mat_type = ""
-            if '전자자료' in col_str: mat_type = "전자자료"
-            elif '인쇄자료' in col_str: mat_type = "인쇄자료"
-            else: continue 
+            if '대출현황(연령별/주제별)_인쇄자료' in col_str or '대출/이용 수_인쇄자료' in col_str or '대출_인쇄자료' in col_str:
+                mat_type = "인쇄자료"
+            elif '대출현황(연령별/주제별)_전자자료' in col_str or '대출/이용 수_전자자료' in col_str or '대출_전자자료' in col_str:
+                mat_type = "전자자료"
+            else:
+                continue
 
-            subject = next((s for s in target_subjects if s in col_str), None)
-            age = next((a for a in target_ages if a in col_str), None)
+            age_match = next((a for a in target_ages if a in col_str), None)
+            subject_match = next((s for s in target_subjects if s in col_str), None)
 
-            if subject and age and mat_type:
-                if subject and '합계' in col_str and not age: continue 
+            # 세 기준이 모두 포함된 컬럼만 추출 (합계 컬럼 제외)
+            if mat_type and age_match and subject_match:
+                if '합계' in col_str: continue # 합계 컬럼 제외 (중복 방지)
                 
+                # 데이터 추출 및 지역별 합산
                 numeric_values = pd.to_numeric(df[col], errors='coerce').fillna(0)
                 temp_df = pd.DataFrame({'Region': df['Region_Fixed'], 'Value': numeric_values})
                 region_sums = temp_df.groupby('Region')['Value'].sum()
@@ -94,10 +106,9 @@ def load_and_process_data():
                             'Year': item['year'],
                             'Region': region_name,
                             'Material': mat_type,
-                            'Subject': subject,
-                            'Age': age,
-                            # [수정] 원본 권수 Count 사용
-                            'Count': val 
+                            'Subject': subject_match,
+                            'Age': age_match,
+                            'Count': val # 원본 권수
                         })
 
         if extracted_rows:
@@ -107,8 +118,9 @@ def load_and_process_data():
     if not all_data: return pd.DataFrame()
         
     final_df = pd.concat(all_data, ignore_index=True)
-    # [수정] Count_Unit 변수 제거
-
+    # [수정] 10만 권 단위 변수 복구
+    final_df['Count_Unit'] = final_df['Count'] / UNIT_DIVISOR 
+    
     # 지도시각화를 위해 위도/경도 정보 추가
     final_df['Lat'] = final_df['Region'].apply(lambda x: REGION_COORDS.get(x, (36.3, 127.8))[0])
     final_df['Lon'] = final_df['Region'].apply(lambda x: REGION_COORDS.get(x, (36.3, 127.8))[1])
@@ -118,8 +130,7 @@ def load_and_process_data():
 # -----------------------------------------------------------------------------
 # 3. 데이터 로드 실행
 # -----------------------------------------------------------------------------
-# [수정] 스피너 메시지에서 단위 부분 제거 (Count_Unit 제거에 따른 변경)
-with st.spinner(f'⏳ 5개년 엑셀 파일 정밀 분석 및 데이터 통합 중...'):
+with st.spinner(f'⏳ 5개년 엑셀 파일 정밀 분석 및 데이터 통합 중 (단위: {UNIT_LABEL} 적용)...'):
     df = load_and_process_data()
 
 # -----------------------------------------------------------------------------
@@ -178,42 +189,38 @@ else:
     st.markdown("---") 
 
     # -------------------------------------------------------------
-    # 5-1. 지역별 대출 추세 (Mapbox - 색상 진하기 및 줌 레벨 조정)
+    # 5-1. 지역별 대출 추세 (Mapbox - 인터랙티브 애니메이션 복구)
     # -------------------------------------------------------------
-    st.markdown("### 지역별 연간 대출 추세 (지도 시각화 - 색상 진하기)")
+    st.markdown("### 지역별 연간 대출 추세 (지도 시각화 - 색상 진하기 + 연도별 애니메이션)")
     
-    st.warning("🗺️ **지도시각화 참고:** 정확한 행정구역 경계선(GeoJSON) 없이 지역별 분포를 표시하기 위해 **Mapbox**를 사용합니다. 각 점의 **색상 진하기**가 대출 권수를 나타냅니다.")
+    st.info("💡 **지도 사용법:** 하단 슬라이더를 움직이거나 재생 버튼을 눌러 연도별 대출 권수의 변화를 확인하세요. 색상 진하기가 대출 권수를 나타냅니다.")
 
     # 지역별 연도별 집계
-    map_data = filtered_df.groupby(['Year', 'Region', 'Lat', 'Lon'])['Count'].sum().reset_index()
-
-    map_year_options = sorted(map_data['Year'].unique())
-    map_year = st.selectbox("지도 분석 연도 선택", map_year_options, key='map_year_select')
-    
-    map_data_filtered = map_data[map_data['Year'] == map_year]
+    map_data = filtered_df.groupby(['Year', 'Region', 'Lat', 'Lon'])['Count_Unit'].sum().reset_index()
 
     fig_map = px.scatter_mapbox(
-        map_data_filtered, 
+        map_data, 
         lat="Lat", 
         lon="Lon", 
         hover_name="Region", 
-        size=[30] * len(map_data_filtered), # [수정] 점 크기를 고정 (수도권 외 지역 가시성 확보)
-        color="Count",                     # [수정] 색상을 대출 권수로 사용
-        color_continuous_scale=px.colors.sequential.Plasma, # 색상 팔레트 지정
-        zoom=6.5,          # [수정] 줌 레벨을 6.5로 높여 남한 전체를 가득 채우도록 조정
+        size=[30] * len(map_data),          # 점 크기 고정 (가시성 확보)
+        color="Count_Unit",                 # 색상을 대출 권수로 사용
+        color_continuous_scale=px.colors.sequential.Plasma,
+        # [복구] 인터랙티브 애니메이션
+        animation_frame="Year",             
+        zoom=6.5,                           # 줌 레벨 조정
         height=600,
-        title=f"**{map_year}년 지역별 대출 권수 분포** (색상 진하기: 대출 권수)",
+        title=f"**연도별 지역 대출 권수 분포** (색상 진하기: {UNIT_LABEL})",
+        
     )
     
-    # 한국 중심으로 지도 설정 및 배경 스타일 설정
     fig_map.update_layout(
         mapbox_style="carto-positron",
         mapbox_center={"lat": 36.3, "lon": 127.8},
         margin={"r":0,"t":50,"l":0,"b":0},
         coloraxis_colorbar=dict(
-            title=f"대출 권수<br>(단위: {MILLION_UNIT_LABEL})",
-            # 축 값에 백만 단위를 적용 (K = 천, M = 백만)
-            tickformat='.2s' 
+            title=f"대출 권수<br>(단위: {UNIT_LABEL})",
+            tickformat=',.0f' # 10만 단위로 표시
         )
     )
     fig_map.update_traces(marker=dict(sizemin=5))
@@ -236,36 +243,34 @@ else:
             key='material_chart_type'
         )
 
-    # 자료유형별 연도별 집계
-    material_data = filtered_df.groupby(['Year', 'Material'])['Count'].sum().reset_index()
+    material_data = filtered_df.groupby(['Year', 'Material'])['Count_Unit'].sum().reset_index()
 
     if chart_type == 'Stacked Bar (총량+비율)':
         fig_mat = px.bar(
             material_data,
             x='Year',
-            y='Count',
+            y='Count_Unit',
             color='Material',
             barmode='stack',
             title=f"**자료유형별 연간 대출 총량 및 비율 변화**",
-            labels={'Count': f'대출 권수 (단위: {MILLION_UNIT_LABEL})', 'Year': '연도'},
+            labels={'Count_Unit': f'대출 권수 ({UNIT_LABEL})', 'Year': '연도'},
             color_discrete_sequence=px.colors.qualitative.T10 
         )
-    else: # Grouped Bar (개별 비교)
+    else: 
         fig_mat = px.bar(
             material_data,
             x='Year',
-            y='Count',
+            y='Count_Unit',
             color='Material',
             barmode='group',
             title=f"**자료유형별 연간 대출 권수 개별 비교**",
-            labels={'Count': f'대출 권수 (단위: {MILLION_UNIT_LABEL})', 'Year': '연도'},
+            labels={'Count_Unit': f'대출 권수 ({UNIT_LABEL})', 'Year': '연도'},
             color_discrete_sequence=px.colors.qualitative.T10 
         )
 
     with col_mat_chart:
         fig_mat.update_xaxes(type='category')
-        # [수정] y축 포맷을 백만 단위로 변경 (예: 1M, 2M)
-        fig_mat.update_yaxes(tickformat=',.2s') 
+        fig_mat.update_yaxes(tickformat=',.0f') 
         st.plotly_chart(fig_mat, use_container_width=True)
         
     st.markdown("---") 
@@ -276,21 +281,21 @@ else:
     # -------------------------------------------------------------
     st.markdown("### 연령별 연간 대출 추세 (Grouped Bar Chart)")
     
-    age_bar_data = filtered_df.groupby(['Year', 'Age'])['Count'].sum().reset_index()
+    age_bar_data = filtered_df.groupby(['Year', 'Age'])['Count_Unit'].sum().reset_index()
 
     fig_age_bar = px.bar(
         age_bar_data,
         x='Year',
-        y='Count',
+        y='Count_Unit',
         color='Age',
         barmode='group', 
         title=f"**연령별 연간 대출 권수 비교**",
-        labels={'Count': f'대출 권수 (단위: {MILLION_UNIT_LABEL})', 'Year': '연도'},
+        labels={'Count_Unit': f'대출 권수 ({UNIT_LABEL})', 'Year': '연도'},
         category_orders={"Age": ['어린이', '청소년', '성인']},
         color_discrete_sequence=px.colors.qualitative.Vivid
     )
     fig_age_bar.update_xaxes(type='category')
-    fig_age_bar.update_yaxes(tickformat=',.2s') 
+    fig_age_bar.update_yaxes(tickformat=',.0f') 
     st.plotly_chart(fig_age_bar, use_container_width=True)
     st.markdown("---") 
     
@@ -300,26 +305,26 @@ else:
     # -------------------------------------------------------------
     st.markdown("### 주제별 연간 대출 추세 (Line Chart)")
     
-    subject_line_data = filtered_df.groupby(['Year', 'Subject'])['Count'].sum().reset_index()
+    subject_line_data = filtered_df.groupby(['Year', 'Subject'])['Count_Unit'].sum().reset_index()
     
     fig_subject_line = px.line(
         subject_line_data,
         x='Year',
-        y='Count',
+        y='Count_Unit',
         color='Subject',
         markers=True,
         title=f"**주제별 연간 대출 권수 변화**",
-        labels={'Count': f'대출 권수 (단위: {MILLION_UNIT_LABEL})', 'Year': '연도'},
+        labels={'Count_Unit': f'대출 권수 ({UNIT_LABEL})', 'Year': '연도'},
         color_discrete_sequence=px.colors.qualitative.Dark24 
     )
     fig_subject_line.update_xaxes(type='category')
-    fig_subject_line.update_yaxes(tickformat=',.2s') 
+    fig_subject_line.update_yaxes(tickformat=',.0f') 
     st.plotly_chart(fig_subject_line, use_container_width=True)
     st.markdown("---") 
 
 
     # -------------------------------------------------------------
-    # 6. 상세 분포 분석 (다기준 시각화 도입)
+    # 6. 상세 분포 분석 (버블차트 재구성을 위해 Grouped Bar Chart로 임시 복귀)
     # -------------------------------------------------------------
     st.subheader("2. 주제, 연령, 자료유형별 상세 분포 분석")
     
@@ -331,66 +336,54 @@ else:
         # --- 2-A. 지역별 순위 ---
         st.markdown(f"### {target_year}년 지역별 대출 순위 (Bar Chart)")
         
-        regional_data = detail_data.groupby('Region')['Count'].sum().reset_index()
+        regional_data = detail_data.groupby('Region')['Count_Unit'].sum().reset_index()
         
         fig_bar_regional = px.bar(
-            regional_data.sort_values('Count', ascending=False), 
+            regional_data.sort_values('Count_Unit', ascending=False), 
             x='Region', 
-            y='Count', 
+            y='Count_Unit', 
             color='Region',
             title="지역별 총 대출 권수 순위",
-            labels={'Count': f'대출 권수 (단위: {MILLION_UNIT_LABEL})', 'Region': '지역'},
+            labels={'Count_Unit': f'대출 권수 ({UNIT_LABEL})', 'Region': '지역'},
             color_discrete_sequence=px.colors.qualitative.Bold
         )
-        fig_bar_regional.update_yaxes(tickformat=',.2s')
+        fig_bar_regional.update_yaxes(tickformat=',.0f')
         st.plotly_chart(fig_bar_regional, use_container_width=True)
         st.markdown("---") 
 
-        # --- 2-B. 주제/연령/자료유형/대출량 4기준 동시 분석 (Bubble Chart) ---
-        st.markdown(f"### {target_year}년 주제/연령/자료유형별 4기준 상세 분포 (Bubble Chart)")
+        # --- 2-B. 주제/연령대 대출 비교 (Grouped Bar Chart - 임시 복귀) ---
+        st.markdown(f"### {target_year}년 주제별 연령대 대출 비교 (Grouped Bar Chart - 임시)")
+        st.warning("⚠️ **잠시 안내:** 이전 요청하신 **다기준 버블 차트**를 재구성하기 위해 잠시 **Grouped Bar Chart**로 복귀했습니다. 버블 차트에 사용하실 **X축, Y축, 색상, 크기** 기준을 다시 말씀해주시면 반영하겠습니다.")
         
-        bubble_data = detail_data.groupby(['Subject', 'Age', 'Material'])['Count'].sum().reset_index()
+        subject_age_data = detail_data.groupby(['Subject', 'Age'])['Count_Unit'].sum().reset_index()
         
-        fig_bubble = px.scatter(
-            bubble_data,
+        fig_grouped_bar = px.bar(
+            subject_age_data,
             x='Subject',
-            y='Count',
-            color='Age',             
-            size='Count',       
-            hover_name='Material',   
-            hover_data={
-                'Count': True,
-                'Subject': True,
-                'Age': True,
-                'Material': True
-            },
-            title="주제(X)별 연령(색상)별 대출 권수(Y/크기) 분포",
-            labels={
-                'Count': f'대출 권수 (단위: {MILLION_UNIT_LABEL})',
-                'Subject': '주제',
-                'Age': '연령대',
-            },
-            height=600,
-            size_max=80,
-            color_discrete_sequence=px.colors.qualitative.G10
+            y='Count_Unit',
+            color='Age',
+            barmode='group', 
+            title="주제별 연령대별 대출 권수 비교",
+            labels={'Count_Unit': f'대출 권수 ({UNIT_LABEL})', 'Subject': '주제', 'Age': '연령대'},
+            category_orders={"Age": ['어린이', '청소년', '성인']}, 
+            color_discrete_sequence=px.colors.sequential.Sunset
         )
-        
-        fig_bubble.update_yaxes(tickformat=',.2s')
-        st.plotly_chart(fig_bubble, use_container_width=True)
+        fig_grouped_bar.update_yaxes(tickformat=',.0f')
+        st.plotly_chart(fig_grouped_bar, use_container_width=True)
         st.markdown("---") 
 
         # **Pie Chart (자료 유형 비율)**
         with st.container():
             st.markdown(f"### {target_year}년 자료 유형 비율 (Pie Chart)")
-            material_data_pie = detail_data.groupby('Material')['Count'].sum().reset_index()
+            material_data_pie = detail_data.groupby('Material')['Count_Unit'].sum().reset_index()
             
             fig_pie = px.pie(
                 material_data_pie,
-                values='Count',
+                values='Count_Unit',
                 names='Material',
                 title="자료 유형 (인쇄 vs 전자) 비율",
                 hole=.3, 
-                labels={'Count': '대출 권수 비율', 'Material': '자료유형'},
+                labels={'Count_Unit': '대출 권수 비율', 'Material': '자료유형'},
                 height=500,
                 color_discrete_sequence=px.colors.sequential.RdBu
             )
