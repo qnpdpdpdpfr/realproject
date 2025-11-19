@@ -123,7 +123,7 @@ def load_and_process_data():
     if not all_data: return pd.DataFrame()
         
     final_df = pd.concat(all_data, ignore_index=True)
-    # 총계 행이 제거된 정확한 Count 값을 기반으로 단위 변환
+    # 총계 행이 제거된 정확한 Count 값을 기반으로 단위 변환 (차트용)
     final_df['Count_Unit'] = final_df['Count'] / UNIT_DIVISOR 
     
     # 인구당 대출 권수 계산 (이전과 동일)
@@ -159,10 +159,16 @@ st.header("📊 대출 현황 분석")
 
 # -------------------------------------------------------------
 # 4-1. 전체 총계 메트릭 추가 (정확히 계산된 총계값 사용)
+#
+# 변경점: 메트릭은 Raw Count(권)로 표시하고, 10만 권 단위는 부가 정보로 제공
 # -------------------------------------------------------------
 overall_total_count = base_df['Count'].sum()
 overall_total_unit = overall_total_count / UNIT_DIVISOR
-st.subheader(f"✅ 전체 5개년 (2020년~2024년) 총 대출 권수: {overall_total_unit:,.2f} {UNIT_LABEL}")
+
+# 상단 메트릭은 Raw Count로 표시
+st.subheader(f"✅ 전체 5개년 (2020년~2024년) 총 대출 권수: {overall_total_count:,.0f} 권") 
+# 10만 권 단위는 가독성을 위해 작은 글씨로 안내
+st.caption(f"이는 약 {overall_total_unit:,.2f} {UNIT_LABEL}에 해당합니다.")
 st.markdown("---")
 
 st.subheader("1. 연도별 대출 추세 분석")
@@ -187,7 +193,7 @@ map_filtered_df = base_df[base_df['Region'].isin(selected_region_5_1)]
 if map_filtered_df.empty:
     st.warning("선택한 지역의 데이터가 없어 라인 차트를 표시할 수 없습니다. 필터를 조정해 주세요.")
 else:
-    # Aggregation with Raw_Count (이제 Raw_Count는 정확한 값이 반영됨)
+    # Aggregation with Raw_Count
     region_line_data = map_filtered_df.groupby(['Year', 'Region']).agg(
         Count_Unit=('Count_Unit', 'sum'),
         Raw_Count=('Count', 'sum')
@@ -269,8 +275,7 @@ else:
     st.plotly_chart(fig_mat, use_container_width=True)
         
 st.markdown("---") 
-
-
+    
 # -------------------------------------------------------------
 # 5-3. 연령별 연간 추세 (Grouped Bar Chart)
 # -------------------------------------------------------------
