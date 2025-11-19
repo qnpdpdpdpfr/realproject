@@ -17,328 +17,435 @@ st.markdown("---")
 UNIT_DIVISOR = 100000
 UNIT_LABEL = '10만 권'
 
-# 2020~2024년 지역별 인구수 (단위: 만 명, 통계청 자료 기반 추정치)
+# 2020~2024년 지역별 인구수 (단위: 만 명, 통계청 자료 기반 추정치) - 이전과 동일
 REGION_POPULATION = {
-    '서울': {2020: 980, 2021: 960, 2022: 950, 2023: 940, 2024: 935},
-    '부산': {2020: 335, 2021: 330, 2022: 325, 2023: 320, 2024: 315},
-    '대구': {2020: 242, 2021: 240, 2022: 238, 2023: 235, 2024: 233},
-    '인천': {2020: 295, 2021: 300, 2022: 305, 2023: 310, 2024: 315},
-    '광주': {2020: 147, 2021: 146, 2022: 145, 2023: 144, 2024: 143},
-    '대전': {2020: 148, 2021: 147, 2022: 146, 2023: 145, 2024: 144},
-    '울산': {2020: 114, 2021: 113, 2022: 112, 2023: 111, 2024: 110},
-    '세종': {2020: 35, 2021: 36, 2022: 38, 2023: 40, 2024: 41},
-    '경기': {2020: 1340, 2021: 1355, 2022: 1370, 2023: 1390, 2024: 1410},
-    '강원': {2020: 154, 2021: 154, 2022: 154, 2023: 154, 2024: 154},
-    '충북': {2020: 160, 2021: 161, 2022: 162, 2023: 163, 2024: 164},
-    '충남': {2020: 212, 2021: 213, 2022: 214, 2023: 215, 2024: 216},
-    '전북': {2020: 179, 2021: 178, 2022: 177, 2023: 176, 2024: 175},
-    '전남': {2020: 184, 2021: 183, 2022: 182, 2023: 181, 2024: 180},
-    '경북': {2020: 265, 2021: 264, 2022: 263, 2023: 262, 2024: 261},
-    '경남': {2020: 335, 2021: 332, 2022: 330, 2023: 328, 2024: 325},
-    '제주': {2020: 67, 2021: 67, 2022: 67, 2023: 67, 2024: 67}
+	'서울': {2020: 980, 2021: 960, 2022: 950, 2023: 940, 2024: 935},
+	'부산': {2020: 335, 2021: 330, 2022: 325, 2023: 320, 2024: 315},
+	'대구': {2020: 242, 2021: 240, 2022: 238, 2023: 235, 2024: 233},
+	'인천': {2020: 295, 2021: 300, 2022: 305, 2023: 310, 2024: 315},
+	'광주': {2020: 147, 2021: 146, 2022: 145, 2023: 144, 2024: 143},
+	'대전': {2020: 148, 2021: 147, 2022: 146, 2023: 145, 2024: 144},
+	'울산': {2020: 114, 2021: 113, 2022: 112, 2023: 111, 2024: 110},
+	'세종': {2020: 35, 2021: 36, 2022: 38, 2023: 40, 2024: 41},
+	'경기': {2020: 1340, 2021: 1355, 2022: 1370, 2023: 1390, 2024: 1410},
+	'강원': {2020: 154, 2021: 154, 2022: 154, 2023: 154, 2024: 154},
+	'충북': {2020: 160, 2021: 161, 2022: 162, 2023: 163, 2024: 164},
+	'충남': {2020: 212, 2021: 213, 2022: 214, 2023: 215, 2024: 216},
+	'전북': {2020: 179, 2021: 178, 2022: 177, 2023: 176, 2024: 175},
+	'전남': {2020: 184, 2021: 183, 2022: 182, 2023: 181, 2024: 180},
+	'경북': {2020: 265, 2021: 264, 2022: 263, 2023: 262, 2024: 261},
+	'경남': {2020: 335, 2021: 332, 2022: 330, 2023: 328, 2024: 325},
+	'제주': {2020: 67, 2021: 67, 2022: 67, 2023: 67, 2024: 67}
 }
 
 # -----------------------------------------------------------------------------
-# 2. 데이터 로드 및 전처리 함수
+# 2. 데이터 로드 및 전처리 함수 (이전과 동일)
 # -----------------------------------------------------------------------------
 @st.cache_data
 def load_and_process_data():
-    # 이 부분은 데이터 디렉토리와 파일명이 Streamlit 환경에 맞게 존재한다고 가정합니다.
-    # 해당 파일들은 사용자가 제공한 파일 목록에는 없으므로, 로드 실패 시 빈 DataFrame이 반환될 수 있습니다.
-    files = [
-        {'year': 2020, 'file': "2021('20년실적)도서관별통계입력데이터_공공도서관_(최종)_23.12.07..xlsx"},
-        {'year': 2021, 'file': "2022년('21년 실적) 공공도서관 통계데이터 최종_23.12.06..xlsx"},
-        {'year': 2022, 'file': "2023년('22년 실적) 공공도서관 입력데이터_최종.xlsx"},
-        {'year': 2023, 'file': "2024년('23년 실적) 공공도서관 통계데이터_업로드용(2024.08.06).xlsx"},
-        {'year': 2024, 'file': "2025년(_24년 실적) 공공도서관 통계조사 결과(250729).xlsx"}
-    ]
-    data_dir = "data"
-    all_data = []
-    target_subjects = ['총류', '철학', '종교', '사회과학', '순수과학', '기술과학', '예술', '언어', '문학', '역사']
-    target_ages = ['어린이', '청소년', '성인']
-    regions_list = list(REGION_POPULATION.keys()) # 모든 지역 리스트
+	files = [
+		{'year': 2020, 'file': "2021('20년실적)도서관별통계입력데이터_공공도서관_(최종)_23.12.07..xlsx"},
+		{'year': 2021, 'file': "2022년('21년 실적) 공공도서관 통계데이터 최종_23.12.06..xlsx"},
+		{'year': 2022, 'file': "2023년('22년 실적) 공공도서관 입력데이터_최종.xlsx"},
+		{'year': 2023, 'file': "2024년('23년 실적) 공공도서관 통계데이터_업로드용(2024.08.06).xlsx"},
+		{'year': 2024, 'file': "2025년(_24년 실적) 공공도서관 통계조사 결과(250729).xlsx"}
+	]
+	data_dir = "data"
+	all_data = []
+	target_subjects = ['총류', '철학', '종교', '사회과학', '순수과학', '기술과학', '예술', '언어', '문학', '역사']
+	target_ages = ['어린이', '청소년', '성인']
 
-    for item in files:
-        file_path = os.path.join(data_dir, item['file'])
-        
-        # 파일이 없거나 로드 오류가 발생했다고 가정하고, 임시 데이터 생성 (실제 환경에서는 파일 로드 필요)
-        # 실제 데이터가 없으므로 임시 DataFrame 생성
-        
-        # --- 길이 불일치 오류 수정 부분 시작 ---
-        num_regions = len(regions_list)
-        num_subjects = len(target_subjects)
-        total_rows = num_regions * num_subjects
-        
-        # 모든 컬럼이 total_rows와 같은 길이를 갖도록 구성
-        regions_repeated = [r for r in regions_list for _ in target_subjects] # 길이: total_rows
-        subjects_cycled = target_subjects * num_regions # 길이: total_rows
-        values_list = [1000000 + i * 50000 for i in range(total_rows)] # 길이: total_rows
-        
-        # Age_Group을 total_rows 길이에 맞게 순환해서 생성
-        age_groups_cycled = []
-        age_group_cycle_len = len(target_ages)
-        for i in range(total_rows):
-            age_groups_cycled.append(target_ages[i % age_group_cycle_len]) # 길이: total_rows
-        # --- 길이 불일치 오류 수정 부분 끝 ---
-        
-        df_temp = pd.DataFrame({
-            'Region': regions_repeated,
-            'Value': values_list,
-            'Subject': subjects_cycled,
-            'Age_Group': age_groups_cycled, # 수정된 Age_Group 리스트 사용
-            'Material_Type': ['인쇄자료'] * total_rows
-        })
-        
-        df_temp['Year'] = item['year']
-        all_data.append(df_temp)
-        
-        # 주석 처리: 실제 파일 로직 (오류 방지)
-        # try:
-        #     if item['year'] >= 2023:
-        #         df = pd.read_excel(file_path, engine='openpyxl', header=1)
-        #         df = df.iloc[2:].reset_index(drop=True)
-        #     else:
-        #         df = pd.read_excel(file_path, engine='openpyxl', header=0)
-        #         df = df.iloc[1:].reset_index(drop=True)
-        #
-        #     df['Region_Fixed'] = df.iloc[:, 3].astype(str).str.strip()
-        #     df = df[df['Region_Fixed'] != 'nan']
-        #
-        #     extracted_rows = []
-        #     for col in df.columns:
-        #         col_str = str(col)
-        #         mat_type = ""
-        #         if '전자자료' in col_str: mat_type = "전자자료"
-        #         elif '인쇄자료' in col_str: mat_type = "인쇄자료"
-        #         else: continue
-        #
-        #         subject = next((s for s in target_subjects if s in col_str), None)
-        #         age = next((a for a in target_ages if a in col_str), None)
-        #
-        #         if subject and age and mat_type:
-        #             numeric_values = pd.to_numeric(df[col], errors='coerce').fillna(0)
-        #             temp_df = pd.DataFrame({'Region': df['Region_Fixed'], 'Value': numeric_values})
-        #             region_sums = temp_df.groupby('Region')['Value'].sum().reset_index()
-        #             region_sums['Subject'] = subject
-        #             region_sums['Age_Group'] = age
-        #             region_sums['Material_Type'] = mat_type
-        #             extracted_rows.append(region_sums)
-        #
-        #     if extracted_rows:
-        #         df_year = pd.concat(extracted_rows)
-        #         df_year['Year'] = item['year']
-        #         all_data.append(df_year)
-        # except Exception:
-        #     continue
+	# 파일이 실제로 존재하는지 확인하는 로직은 제거하고, 파일이 없으면 건너뛰는 기존 로직을 따릅니다.
+	for item in files:
+		file_path = os.path.join(data_dir, item['file'])
+		if not os.path.exists(file_path): continue
 
-    if not all_data:
-        # 실제 데이터가 없을 경우, 더미 데이터를 반환하여 대시보드 구조 유지
-        return pd.DataFrame({
-            'Year': [2024] * 10, 'Region': ['서울'] * 10, 'Subject': target_subjects,
-            'Age_Group': ['성인'] * 10, 'Material_Type': ['인쇄자료'] * 10, 'Value': [i * 100000 for i in range(1, 11)]
-        })
+		try:
+			if item['year'] >= 2023:
+				df = pd.read_excel(file_path, engine='openpyxl', header=1)
+				df = df.iloc[2:].reset_index(drop=True)
+			else:
+				df = pd.read_excel(file_path, engine='openpyxl', header=0)
+				df = df.iloc[1:].reset_index(drop=True)
 
-    df_combined = pd.concat(all_data, ignore_index=True)
+			df['Region_Fixed'] = df.iloc[:, 3].astype(str).str.strip()
+			df = df[df['Region_Fixed'] != 'nan']
+		except Exception: continue
+		
+		extracted_rows = []
+		for col in df.columns:
+			col_str = str(col)
+			mat_type = ""
+			if '전자자료' in col_str: mat_type = "전자자료"
+			elif '인쇄자료' in col_str: mat_type = "인쇄자료"
+			else: continue
+			
+			subject = next((s for s in target_subjects if s in col_str), None)
+			age = next((a for a in target_ages if a in col_str), None)
 
-    # 한글 컬럼명 매핑
-    subject_map = {
-        '총류': '총류', '철학': '철학', '종교': '종교', '사회과학': '사회과학',
-        '순수과학': '순수과학', '기술과학': '기술과학', '예술': '예술',
-        '언어': '언어', '문학': '문학', '역사': '역사'
-    }
-    age_map = {'어린이': '어린이', '청소년': '청소년', '성인': '성인'}
+			if subject and age and mat_type:
+				numeric_values = pd.to_numeric(df[col], errors='coerce').fillna(0)
+				temp_df = pd.DataFrame({'Region': df['Region_Fixed'], 'Value': numeric_values})
+				region_sums = temp_df.groupby('Region')['Value'].sum()
 
-    df_combined['Subject_KR'] = df_combined['Subject'].map(subject_map).fillna('기타')
-    df_combined['Age_Group_KR'] = df_combined['Age_Group'].map(age_map).fillna('미분류')
+				for region_name, val in region_sums.items():
+					if val > 0:
+						extracted_rows.append({
+							'Year': item['year'],
+							'Region': region_name,
+							'Material': mat_type,
+							'Subject': subject,
+							'Age': age,
+							'Count': val	
+						})
 
-    # 인당 대출 건수 계산
-    df_combined['Population'] = df_combined.apply(
-        lambda row: REGION_POPULATION.get(row['Region'], {}).get(row['Year'], 100) * 10000, axis=1
-    )
-    df_combined['Per_Capita_Loan'] = (df_combined['Value'] / df_combined['Population']).round(2)
+		if extracted_rows:
+			year_df = pd.DataFrame(extracted_rows)
+			all_data.append(year_df)
 
-    return df_combined
+	if not all_data: return pd.DataFrame()
+		
+	final_df = pd.concat(all_data, ignore_index=True)
+	final_df['Count_Unit'] = final_df['Count'] / UNIT_DIVISOR	
+	
+	# 🚨 인구당 대출 권수 계산
+	def calculate_per_capita(row):
+		year = row['Year']
+		region = row['Region']
+		count = row['Count']
+		population = REGION_POPULATION.get(region, {}).get(year, 1) * 10000	
+		return count / population * 100000 if population > 0 else 0
+		
+	final_df['Count_Per_Capita'] = final_df.apply(calculate_per_capita, axis=1)
+
+	return final_df
 
 # -----------------------------------------------------------------------------
-# 3. 차트 생성 함수
+# 3. 데이터 로드 실행
 # -----------------------------------------------------------------------------
-
-# 함수 1: 지역별-연도별 대출 추이 막대 그래프
-def plot_regional_loan_trend(df, unit_divisor, unit_label):
-    df_regional_sum = df.groupby(['Year', 'Region'])['Value'].sum().reset_index()
-    df_regional_sum['Value_Unit'] = (df_regional_sum['Value'] / unit_divisor).round(2)
-
-    fig = px.bar(
-        df_regional_sum, x='Year', y='Value_Unit', color='Region',
-        barmode='group',
-        labels={'Year': '연도', 'Value_Unit': f'대출 건수 (단위: {unit_label})', 'Region': '지역'},
-        title=f'연도별 지역별 총 대출 건수 추이 (단위: {unit_label})',
-        template='plotly_white'
-    )
-    fig.update_layout(xaxis=dict(tickmode='linear'), legend_title_text='지역')
-    return fig
-
-# 함수 2: 인당 대출 건수 비교 히트맵
-def plot_per_capita_heatmap(df):
-    df_capita_avg = df.groupby(['Year', 'Region'])['Per_Capita_Loan'].mean().reset_index()
-
-    fig = px.density_heatmap(
-        df_capita_avg, x='Year', y='Region', z='Per_Capita_Loan',
-        color_continuous_scale='Viridis', # 기존에 Inferno가 아니었으므로 유지
-        labels={'Year': '연도', 'Region': '지역', 'Per_Capita_Loan': '인당 대출 건수 (권)'},
-        title='연도별 지역별 인당 평균 대출 건수 비교 (히트맵)',
-        template='plotly_white'
-    )
-    fig.update_layout(xaxis=dict(tickmode='linear'))
-    return fig
-
-# 함수 3: 주제별/연령별 대출 점유율 (선버스트 / 트리맵)
-def plot_subject_loan_charts(df, chart_type):
-    # 선버스트/트리맵을 위해 전체 합계 데이터 사용
-    df_chart = df.groupby(['Age_Group_KR', 'Subject_KR'])['Value'].sum().reset_index()
-    
-    # 단위 접두사 (차트 제목용)
-    total_value = df_chart['Value'].sum()
-    if total_value >= 10**8:
-        divisor = 10**8
-        title_prefix = f'총 {round(total_value/divisor, 2)}억 권 중'
-    elif total_value >= 10**7:
-        divisor = 10**7
-        title_prefix = f'총 {round(total_value/divisor, 2)}천만 권 중'
-    else:
-        divisor = 1
-        title_prefix = ''
-
-    # 선버스트 차트 (Cividis 팔레트 적용)
-    if chart_type == 'Sunburst':
-        fig_sunburst = px.sunburst(
-            df_chart, path=['Age_Group_KR', 'Subject_KR'], values='Value',
-            title=f'{title_prefix} 주제별/연령별 점유율 (단위: {UNIT_LABEL})',
-            color='Value',
-            color_continuous_scale=px.colors.sequential.Cividis, # <--- Cividis 팔레트 적용
-            height=700
-        )
-        fig_sunburst.update_traces(hovertemplate='<b>%{label}</b><br>대출 건수: %{value:,}<extra></extra>')
-        return fig_sunburst
-    
-    # 트리맵 차트 (Cividis 팔레트 적용)
-    elif chart_type == 'Treemap':
-        fig_treemap = px.treemap(
-            df_chart, path=['Age_Group_KR', 'Subject_KR'], values='Value',
-            title=f'{title_prefix} 주제별/연령별 점유율 (단위: {UNIT_LABEL})',
-            color='Value',
-            color_continuous_scale=px.colors.sequential.Cividis, # <--- Cividis 팔레트 적용
-            height=700
-        )
-        fig_treemap.update_traces(hovertemplate='<b>%{label}</b><br>대출 건수: %{value:,}<extra></extra>')
-        return fig_treemap
-        
-    return px.scatter() # 기본 반환
-
-# 함수 4: 상세 분석 테이블
-def create_detail_table(df, region, year):
-    df_filtered = df[(df['Region'] == region) & (df['Year'] == year)].copy()
-    
-    if df_filtered.empty:
-        return pd.DataFrame({'정보': ['선택하신 조건에 해당하는 데이터가 없습니다.']})
-
-    df_result = df_filtered.groupby(['Subject_KR', 'Age_Group_KR', 'Material_Type']).agg(
-        Total_Loan=('Value', 'sum'),
-        Avg_Per_Capita=('Per_Capita_Loan', 'mean')
-    ).reset_index()
-
-    # 컬럼 이름 변경 및 형식 지정
-    df_result.rename(columns={
-        'Subject_KR': '주제',
-        'Age_Group_KR': '연령대',
-        'Material_Type': '자료 유형',
-        'Total_Loan': '총 대출 건수',
-        'Avg_Per_Capita': '인당 대출 건수 (평균)'
-    }, inplace=True)
-    
-    df_result['총 대출 건수'] = df_result['총 대출 건수'].apply(lambda x: f"{int(x):,}")
-    df_result['인당 대출 건수 (평균)'] = df_result['인당 대출 건수 (평균)'].round(2)
-
-    return df_result
-
+with st.spinner(f'⏳ 5개년 엑셀 파일 정밀 분석 및 데이터 통합 중 (단위: {UNIT_LABEL} 적용)...'):
+	df = load_and_process_data()
 
 # -----------------------------------------------------------------------------
-# 4. Streamlit 레이아웃 구성
+# 4. 시각화 시작
 # -----------------------------------------------------------------------------
-# 데이터 로드
-df_loan = load_and_process_data()
+if df.empty:
+	st.error("😭 데이터를 추출하지 못했습니다. 파일 경로를 확인해 주세요.")
+	st.stop()	
 
-# 탭 구성
-tab1, tab2 = st.tabs(["📊 거시적 대출 현황 분석", "🔍 상세 지역/연도 분석"])
+base_df = df.copy()
 
-# 탭 1: 거시적 대출 현황 분석
-with tab1:
-    st.subheader("1. 연도별/지역별 총 대출 추이")
-    # 막대 그래프 (함수 1)
-    fig_bar = plot_regional_loan_trend(df_loan, UNIT_DIVISOR, UNIT_LABEL)
-    st.plotly_chart(fig_bar, use_container_width=True)
+st.header("📊 대출 현황 분석")
+st.subheader("1. 연도별 대출 추세 분석")
+		
+st.markdown("---")	
 
-    st.subheader("2. 인당 대출 건수 비교 분석 (히트맵)")
-    # 히트맵 (함수 2)
-    fig_heatmap = plot_per_capita_heatmap(df_loan)
-    st.plotly_chart(fig_heatmap, use_container_width=True)
-    st.caption("인당 대출 건수는 각 지역의 연도별 추정 인구수를 기반으로 계산되었습니다.")
+# -------------------------------------------------------------
+# 5-1. 지역별 연간 대출 추세 (라인 차트) - 지역 필터 적용
+# -------------------------------------------------------------
+st.markdown("### 지역별 연간 대출 추세 (라인 차트)")
+st.caption("✅ **필터 적용 기준:** **지역**")
 
-    st.subheader("3. 주제별/연령별 대출 점유율 (전체 기간 합산)")
-    
-    # 차트 유형 선택 라디오 버튼
-    chart_type = st.radio(
-        "차트 유형 선택:",
-        ('Sunburst', 'Treemap'),
-        key='chart_type_tab1',
-        horizontal=True
-    )
-    
-    # 선버스트/트리맵 차트 (함수 3)
-    fig_subject_loan = plot_subject_loan_charts(df_loan, chart_type)
-    st.plotly_chart(fig_subject_loan, use_container_width=True)
+# 5-1 로컬 필터링 컨트롤러: 지역
+all_regions = sorted(base_df['Region'].unique())
+selected_region_5_1 = st.multiselect(
+	"📍 **비교 대상 지역**을 선택하세요",
+	all_regions,
+	default=['서울', '부산', '경기', '세종'],
+	key='filter_region_5_1'
+)
+
+map_filtered_df = base_df[base_df['Region'].isin(selected_region_5_1)]
+
+if map_filtered_df.empty:
+	st.warning("선택한 지역의 데이터가 없어 라인 차트를 표시할 수 없습니다. 필터를 조정해 주세요.")
+else:
+	region_line_data = map_filtered_df.groupby(['Year', 'Region'])['Count_Unit'].sum().reset_index()
+
+	fig_region_line = px.line(
+		region_line_data,
+		x='Year',
+		y='Count_Unit',
+		color='Region',
+		markers=True,
+		title=f"**선택 지역별 연간 대출 권수 변화**",
+		labels={'Count_Unit': f'대출 권수 ({UNIT_LABEL})', 'Year': '연도'},
+		color_discrete_sequence=px.colors.qualitative.Bold
+	)
+	fig_region_line.update_xaxes(type='category')
+	fig_region_line.update_yaxes(tickformat=',.0f')	
+	st.plotly_chart(fig_region_line, use_container_width=True)
+		
+st.markdown("---")	
+		
+# -------------------------------------------------------------
+# 5-2. 자료유형별 연간 추세 (Stacked Bar Chart 고정) - 자료 유형 필터 적용
+# -------------------------------------------------------------
+st.markdown("### 자료유형별 연간 대출 추세")
+st.caption("✅ **필터 적용 기준:** **자료 유형**")
+
+# 5-2 로컬 필터링 컨트롤러: 자료 유형
+all_materials = sorted(base_df['Material'].unique())
+selected_material_5_2 = st.multiselect(
+	"📚 **자료 유형**을 선택하세요 (선택된 유형만 표시)",
+	all_materials,
+	default=all_materials,
+	key='filter_material_5_2'
+)
+
+# 5-2 필터링 적용
+filtered_df_5_2 = base_df[base_df['Material'].isin(selected_material_5_2)]
+
+if filtered_df_5_2.empty:
+	st.warning("선택한 자료 유형의 데이터가 없습니다. 필터를 조정해 주세요.")
+else:
+	material_data = filtered_df_5_2.groupby(['Year', 'Material'])['Count_Unit'].sum().reset_index()
+	
+	fig_mat = px.bar(
+		material_data,
+		x='Year',
+		y='Count_Unit',
+		color='Material',
+		barmode='stack',
+		title=f"**자료유형별 연간 대출 총량 및 비율 변화**",
+		labels={'Count_Unit': f'대출 권수 ({UNIT_LABEL})', 'Year': '연도'},
+		color_discrete_sequence=px.colors.qualitative.T10	
+	)
+
+	fig_mat.update_xaxes(type='category')
+	fig_mat.update_yaxes(tickformat=',.0f')	
+	st.plotly_chart(fig_mat, use_container_width=True)
+				
+st.markdown("---")	
 
 
-# 탭 2: 상세 지역/연도 분석
-with tab2:
-    st.subheader("특정 지역 및 연도의 상세 대출 내역")
-    
-    # 사이드바 (또는 컬럼)를 사용하여 필터링 UI 구성
-    col_filter1, col_filter2 = st.columns(2)
-    
-    with col_filter1:
-        # 지역 선택 필터
-        regions = sorted(df_loan['Region'].unique().tolist())
-        selected_region = st.selectbox("지역 선택:", regions, index=regions.index('서울') if '서울' in regions else 0)
-        
-    with col_filter2:
-        # 연도 선택 필터
-        years = sorted(df_loan['Year'].unique().tolist(), reverse=True)
-        selected_year = st.selectbox("연도 선택:", years, index=0)
+# -------------------------------------------------------------
+# 5-3. 연령별 연간 추세 (Grouped Bar Chart) - 연령대 필터 적용
+# -------------------------------------------------------------
+st.markdown("### 연령별 연간 대출 추세 (Grouped Bar Chart)")
+st.caption("✅ **필터 적용 기준:** **연령대**")
 
-    # 필터링된 결과 테이블 (함수 4)
-    st.markdown(f"#### {selected_year}년 {selected_region} 지역 상세 대출 현황")
-    detail_df = create_detail_table(df_loan, selected_region, selected_year)
-    st.dataframe(detail_df, use_container_width=True, hide_index=True)
-    
-    # 추가 분석: 해당 지역/연도의 총 대출 건수
-    total_loan = df_loan[(df_loan['Region'] == selected_region) & (df_loan['Year'] == selected_year)]['Value'].sum()
-    st.markdown(f"**💡 {selected_region}의 {selected_year}년 총 대출 건수:** **{total_loan:,.0f}** 권")
-    
-    # 인구 정보
-    population_val = REGION_POPULATION.get(selected_region, {}).get(selected_year)
-    if population_val:
-        st.markdown(f"**💡 {selected_region}의 {selected_year}년 추정 인구:** **{population_val:,.0f} 만 명**")
-    
-    
-# -----------------------------------------------------------------------------
-# 5. 하단 정보
-# -----------------------------------------------------------------------------
-st.markdown("---")
-st.markdown("""
-<div style="font-size: 0.8em; color: #888;">
-    * 데이터는 2020년부터 2024년까지의 공공도서관 통계 데이터(가정)를 기반으로 합니다.
-    * 인구수는 통계청 자료 기반의 연도별 지역별 추정치입니다.
-    * 실제 데이터 파일이 없는 경우, 대시보드 구조 유지를 위해 임의의 더미 데이터가 사용되었습니다.
-</div>
-""", unsafe_allow_html=True)
+# 5-3 로컬 필터링 컨트롤러: 연령대
+all_ages = sorted(base_df['Age'].unique())
+selected_ages_5_3 = st.multiselect(
+	"👶 **연령대**를 선택하세요 (선택된 연령만 표시)",
+	all_ages,
+	default=all_ages,
+	key='filter_ages_5_3'
+)
+
+# 5-3 필터링 적용
+filtered_df_5_3 = base_df[base_df['Age'].isin(selected_ages_5_3)]
+
+if filtered_df_5_3.empty:
+	st.warning("선택한 연령대의 데이터가 없습니다. 필터를 조정해 주세요.")
+else:
+	age_bar_data = filtered_df_5_3.groupby(['Year', 'Age'])['Count_Unit'].sum().reset_index()
+
+	fig_age_bar = px.bar(
+		age_bar_data,
+		x='Year',
+		y='Count_Unit',
+		color='Age',
+		barmode='group',	
+		title=f"**연령별 연간 대출 권수 비교**",
+		labels={'Count_Unit': f'대출 권수 ({UNIT_LABEL})', 'Year': '연도'},
+		category_orders={"Age": ['어린이', '청소년', '성인']},
+		color_discrete_sequence=px.colors.qualitative.Vivid
+	)
+	fig_age_bar.update_xaxes(type='category')
+	fig_age_bar.update_yaxes(tickformat=',.0f')	
+	st.plotly_chart(fig_age_bar, use_container_width=True)
+st.markdown("---")	
+
+
+# -------------------------------------------------------------
+# 5-4. 주제별 연간 추세 (Line Chart) - 주제 분야 필터 적용
+# -------------------------------------------------------------
+st.markdown("### 주제별 연간 대출 추세 (Line Chart)")
+st.caption("✅ **필터 적용 기준:** **주제 분야**")
+
+# 5-4 로컬 필터링 컨트롤러: 주제 분야 및 순서 정의 (6-B에서 재사용)
+all_subjects = base_df['Subject'].unique()
+subject_order = ['총류', '철학', '종교', '사회과학', '순수과학', '기술과학', '예술', '언어', '문학', '역사']
+sorted_subjects = [s for s in subject_order if s in all_subjects]
+selected_subjects_5_4 = st.multiselect(
+	"📖 **주제 분야**를 선택하세요 (선택된 주제만 표시)",	
+	sorted_subjects,	
+	default=sorted_subjects,
+	key='filter_subject_5_4'
+)
+
+# 5-4 필터링 적용
+filtered_df_5_4 = base_df[base_df['Subject'].isin(selected_subjects_5_4)]
+
+if filtered_df_5_4.empty:
+	st.warning("선택한 주제 분야의 데이터가 없습니다. 필터를 조정해 주세요.")
+else:
+	subject_line_data = filtered_df_5_4.groupby(['Year', 'Subject'])['Count_Unit'].sum().reset_index()
+	
+	fig_subject_line = px.line(
+		subject_line_data,
+		x='Year',
+		y='Count_Unit',
+		color='Subject',
+		markers=True,
+		title=f"**주제별 연간 대출 권수 변화**",
+		labels={'Count_Unit': f'대출 권수 ({UNIT_LABEL})', 'Year': '연도'},
+		color_discrete_sequence=px.colors.qualitative.Dark24	
+	)
+	fig_subject_line.update_xaxes(type='category')
+	fig_subject_line.update_yaxes(tickformat=',.0f')	
+	st.plotly_chart(fig_subject_line, use_container_width=True)
+st.markdown("---")	
+
+
+# -------------------------------------------------------------
+# 6. 상세 분포 분석 (특정 연도)
+# -------------------------------------------------------------
+st.subheader("2. 상세 분포 분석 (특정 연도)")
+
+# 6. 공통 연도 로컬 필터링 컨트롤러 (슬라이더 크기 개선)
+col_year_header, col_year_metric = st.columns([1, 4])
+with col_year_header:
+	st.header("기준 연도")
+with col_year_metric:
+	# 연도 슬라이더
+	target_year = st.slider(
+		"분석 대상 연도 선택",	
+		2020, 2024, 2024,	
+		key='detail_year_select_6',
+		label_visibility="collapsed" # 레이블을 숨깁니다.
+	)
+	# 선택된 연도를 Metric으로 강조하여 시각적으로 크게 보입니다.
+	st.metric(label="선택된 연도", value=f"{target_year}년")	
+
+st.markdown("---") # 시각적 분리
+
+detail_data = base_df[base_df['Year'] == target_year]
+
+if not detail_data.empty:
+	
+	# --- 6-A. 지역별 순위 --- (인구 10만 명당 순위)
+	st.markdown(f"### {target_year}년 지역별 대출 순위 (인구 10만 명당)")
+	st.caption("✅ **의미 강화:** 절대 권수가 아닌 **인구 10만 명당 대출 권수**를 기준으로 순위를 매겨 지역별 비교의 의미를 높였습니다.")
+	
+	regional_data_per_capita = detail_data.groupby('Region')['Count_Per_Capita'].sum().reset_index()
+	
+	fig_bar_regional = px.bar(
+		regional_data_per_capita.sort_values('Count_Per_Capita', ascending=False),	
+		x='Region',	
+		y='Count_Per_Capita',	
+		color='Region',
+		title=f"지역별 인구 10만 명당 총 대출 권수 순위 ({target_year}년)",
+		labels={'Count_Per_Capita': '인구 10만 명당 대출 권수', 'Region': '지역'},
+		color_discrete_sequence=px.colors.qualitative.Bold
+	)
+	fig_bar_regional.update_yaxes(tickformat=',.0f')
+	st.plotly_chart(fig_bar_regional, use_container_width=True)
+	st.markdown("---")	
+
+	# --- 6-B. 주제/연령대/자료유형 대출 비교 (버블 차트 전환) ---
+	st.markdown(f"### 🎯 {target_year}년 주제별/연령별/자료유형별 상세 분포 (버블 차트)")
+	
+	col_material_filter, col_spacer = st.columns([1, 4])
+	with col_material_filter:
+		# 버블 차트용 자료유형 필터
+		material_for_heatmap = st.radio(
+			"자료 유형 선택",
+			('인쇄자료', '전자자료', '전체 합산'),
+			key='heatmap_material_select',
+			horizontal=True
+		)
+
+	# 필터링 적용
+	if material_for_heatmap != '전체 합산':
+		heatmap_data_filtered = detail_data[detail_data['Material'] == material_for_heatmap]
+		chart_title = f"{target_year}년 {material_for_heatmap} 대출 상세 분포 (버블 차트)"
+	else:
+		heatmap_data_filtered = detail_data
+		chart_title = f"{target_year}년 전체 자료 대출 상세 분포 (버블 차트)"
+
+	# 그룹화 (Subject vs Age)
+	# 버블 차트는 그룹별 합계를 각 버블의 크기로 표시합니다.
+	bubble_data = heatmap_data_filtered.groupby(['Subject', 'Age'])['Count_Unit'].sum().reset_index()
+	
+	st.caption("✅ **분석 기준:** **X축(연령)**, **Y축(주제)**, **버블 크기(대출 권수)**")
+	
+	fig_bubble = px.scatter(
+		bubble_data,
+		x='Age',
+		y='Subject',
+		size='Count_Unit', # 대출 권수를 버블 크기로
+		color='Age',       # 연령대로 색상 구분
+		hover_name='Subject',
+		hover_data={'Age': False, 'Subject': False, 'Count_Unit': True}, # 툴팁 설정
+		title=chart_title,
+		labels={
+			'Count_Unit': f'총 대출 권수 ({UNIT_LABEL})',	
+			'Subject': '주제',	
+			'Age': '연령대'
+		},
+		category_orders={
+			"Age": ['어린이', '청소년', '성인'],	
+			"Subject": subject_order
+		},
+		color_discrete_sequence=px.colors.qualitative.Vivid # 안전한 Vivid 팔레트 사용
+	)
+
+	# 축 레이블 회전 및 사이즈 조정
+	fig_bubble.update_layout(height=600)
+	# 버블 크기 조정 (시각적 개선)
+	if not bubble_data.empty:
+		# 최대 크기에 비례하여 버블 크기 참조값 설정
+		max_count = bubble_data['Count_Unit'].max()
+		fig_bubble.update_traces(marker=dict(
+			sizemode='area', 
+			sizeref=2.*max_count/(40.**2), 
+			sizemin=4
+		))
+
+	st.plotly_chart(fig_bubble, use_container_width=True)
+	st.markdown("---")	
+
+	# --- 6-C. Pie Chart ---
+	with st.container():
+		st.markdown(f"### {target_year}년 대출 비율 분석 (Pie Chart)")
+		st.caption("✅ **기준:** 상단의 연도 슬라이더에 따라 비율이 변경됩니다.")
+		
+		# 6-C 로컬 필터링 컨트롤러: 기준 선택 (기존 유지)
+		pie_type = st.radio(
+			"비율 분석 기준 선택",
+			('자료 유형 (인쇄/전자)', '연령대'),
+			key='pie_chart_criteria_6_C',
+			horizontal=True
+		)
+
+		if pie_type == '자료 유형 (인쇄/전자)':
+			pie_data = detail_data.groupby('Material')['Count_Unit'].sum().reset_index()
+			names_col = 'Material'
+			title = f"{target_year}년 자료 유형 (인쇄 vs 전자) 비율"
+			colors = px.colors.sequential.RdBu
+		else:
+			pie_data = detail_data.groupby('Age')['Count_Unit'].sum().reset_index()
+			names_col = 'Age'
+			title = f"{target_year}년 연령대별 대출 권수 비율"
+			colors = px.colors.qualitative.Vivid
+
+		fig_pie = px.pie(
+			pie_data,
+			values='Count_Unit',
+			names=names_col,
+			title=title,
+			hole=.3,	
+			labels={'Count_Unit': '대출 권수 비율'},
+			height=500,
+			color_discrete_sequence=colors
+		)
+		fig_pie.update_traces(textinfo='percent+label')
+		st.plotly_chart(fig_pie, use_container_width=True)
+		
+		
+# 6-1. 데이터 테이블
+with st.expander("원본 추출 데이터 테이블 확인"):
+	st.dataframe(base_df.sort_values(by=['Year', 'Region', 'Subject']), use_container_width=True)
