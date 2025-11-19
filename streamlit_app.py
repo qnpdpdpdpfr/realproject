@@ -14,7 +14,7 @@ st.markdown("### 5개년(2020~2024) 공공도서관 대출 현황 인터랙티�
 st.markdown("---")
 
 # -----------------------------------------------------------------------------
-# 2. 데이터 로드 및 전처리 함수 (연도별 헤더 조건문 추가됨)
+# 2. 데이터 로드 및 전처리 함수 
 # -----------------------------------------------------------------------------
 @st.cache_data
 def load_and_process_data():
@@ -42,7 +42,7 @@ def load_and_process_data():
             continue
 
         try:
-            # [수정된 부분] 연도별 조건문: 헤더 행 구조가 다름
+            # 연도별 조건문: 헤더 행 구조가 다름
             if item['year'] >= 2023:
                 # 2023년 이후 (가정): 2행이 헤더, 5행부터 데이터 (R2=header, R3/R4=skip)
                 df = pd.read_excel(file_path, engine='openpyxl', header=1) 
@@ -86,10 +86,9 @@ def load_and_process_data():
             age = next((a for a in target_ages if a in col_str), None)
 
             # 4. 최종 검증 및 제외 로직
-            # [필수]: Subject, Age, Type이 모두 분류되었는가?
             if subject and age and mat_type:
-                # [제외]: 주제가 있지만 '합계'가 붙은 열은 제외 (주제별 합계가 아닌 경우)
-                if subject and '합계' in col_str and not age: continue # 주제 합계 제외
+                # 주제가 있지만 '합계'가 붙은 열은 제외
+                if subject and '합계' in col_str and not age: continue 
                 
                 # 데이터 추출
                 numeric_values = pd.to_numeric(df[col], errors='coerce').fillna(0)
@@ -130,6 +129,14 @@ if df.empty:
     st.error("😭 데이터를 추출하지 못했습니다. 파일 경로와 헤더 구조(1행/2행)를 다시 확인해 주세요.")
     st.stop()
 
+# Plotly 그래프에서 사용할 한글 기준 매핑 딕셔너리 정의
+criteria_mapping = {
+    'Region': '지역',
+    'Subject': '주제',
+    'Age': '연령',
+    'Material': '자료유형'
+}
+
 # 4-1. 필터 섹션
 st.header("⚙️ 분석 조건 설정")
 
@@ -158,7 +165,6 @@ with col_age:
 # 📖 주제 분야 필터
 with col_subj:
     all_subjects = df['Subject'].unique()
-    # 십진분류 순으로 정렬 (UI 개선)
     subject_order = ['총류', '철학', '종교', '사회과학', '순수과학', '기술과학', '예술', '언어', '문학', '역사']
     sorted_subjects = [s for s in subject_order if s in all_subjects]
     selected_subjects = st.multiselect("📖 **주제 분야**", sorted_subjects, default=sorted_subjects)
@@ -174,7 +180,7 @@ filtered_df = df[
 ]
 
 # -----------------------------------------------------------------------------
-# 5. 시각화 (개선된 UI)
+# 5. 시각화 (개선된 UI 및 용어)
 # -----------------------------------------------------------------------------
 if filtered_df.empty:
     st.warning("선택한 조건의 데이터가 없습니다. 필터를 조정해 주세요.")
@@ -182,49 +188,63 @@ else:
     # 5-1. 연도별 추세선 (Line Chart)
     st.header("📊 대출 현황 분석")
     
-    # 추세선 기준 선택
+    # [수정됨] 추세선 기준 선택
     st.subheader("1. 연도별 대출 추세 (시간 흐름 분석)")
-    color_by = st.radio("추세선 색상 기준 선택", ['Region', 'Subject', 'Age', 'Material'], index=0, horizontal=True)
+    # [수정됨] 사용자에게 보여줄 한글 기준 목록 생성
+    color_options_eng = ['Region', 'Subject', 'Age', 'Material']
+    color_options_kor = [criteria_mapping[c] for c in color_options_eng]
     
-    line_data = filtered_df.groupby(['Year', color_by])['Count'].sum().reset_index()
+    # [수정됨] 라디오 버튼 용어 변경
+    selected_criteria_kor = st.radio("기준 선택", color_options_kor, index=0, horizontal=True)
+    # [수정됨] Plotly에서 사용할 영어 기준명 찾기
+    selected_criteria_eng = next(k for k, v in criteria_mapping.items() if v == selected_criteria_kor)
     
+    line_data = filtered_df.groupby(['Year', selected_criteria_eng])['Count'].sum().reset_index()
+    
+    # [수정됨] 그래프 제목 변경 및 단위 명확화
     fig_line = px.line(
         line_data,
         x='Year',
         y='Count',
-        color=color_by,
+        color=selected_criteria_eng,
         markers=True,
-        title=f"지역 및 {color_by}별 연간 대출 권수 변화",
-        labels={'Count': '대출 권수 (합계)', 'Year': '연도'},
-        hover_name=color_by
+        title=f"**{selected_criteria_kor}별 연간 대출 권수 변화** (단위: 권)",
+        labels={'Count': '대출 권수 (권)', 'Year': '연도'},
+        hover_name=selected_criteria_eng
     )
     fig_line.update_xaxes(type='category')
+    # [추가] Y축 표기를 과학적 표기법(m, k) 대신 일반 숫자로 변경하여 직관성 개선
+    fig_line.update_yaxes(tickformat=',.0f')
     st.plotly_chart(fig_line, use_container_width=True)
 
     st.markdown("---")
 
     # 5-2. 상세 비교 (Bar Chart & Treemap)
-    st.subheader("2. 주제, 연령, 자료유형 상세 비교 (최신 연도 기준)")
+    # [수정됨] 제목 변경
+    st.subheader("2. 주제, 연령, 자료유형별 상세 분포 분석")
     
     # 사용자가 비교할 연도 선택
-    target_year = st.slider("비교할 대상 연도", 2020, 2024, 2024)
+    target_year = st.slider("분석 대상 연도 선택", 2020, 2024, 2024)
     bar_data = filtered_df[filtered_df['Year'] == target_year]
 
     if not bar_data.empty:
         col_bar, col_tree = st.columns([1.5, 1])
 
         with col_bar:
+            # [수정됨] 제목 변경
             st.markdown(f"**{target_year}년 지역별/주제별 대출 현황**")
             # Bar Chart: 지역별 & 주제별 스택
             fig_bar = px.bar(
                 bar_data, x='Region', y='Count', color='Subject',
-                title=f"지역별 대출 분포",
+                title=f"지역별 대출 분포 (주제 스택)",
                 barmode='stack',
-                labels={'Count': '대출 권수', 'Region': '지역'}
+                labels={'Count': '대출 권수 (권)', 'Region': '지역', 'Subject': '주제'},
             )
+            fig_bar.update_yaxes(tickformat=',.0f')
             st.plotly_chart(fig_bar, use_container_width=True)
             
         with col_tree:
+            # [수정됨] 제목 변경
             st.markdown(f"**{target_year}년 전체 대출 구성 비율**")
             # Treemap: 비율 분석에 유용
             fig_tree = px.treemap(
