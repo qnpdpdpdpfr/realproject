@@ -3,6 +3,7 @@ import pandas as pd
 import plotly.express as px
 import os
 import re
+import json # <-- GeoJSON 로드를 위해 추가
 
 # -----------------------------------------------------------------------------
 # 1. 설정 및 제목
@@ -39,7 +40,22 @@ REGION_POPULATION = {
 }
 
 # -----------------------------------------------------------------------------
-# 2. 데이터 로드 및 전처리 함수 (이전과 동일)
+# 2. GeoJSON 데이터 로드 (파일 경로: data/TL_SCCO_CTPRVN.json)
+# -----------------------------------------------------------------------------
+GEOJSON_PATH = os.path.join("data", "TL_SCCO_CTPRVN.json")
+KOREA_GEOJSON = None
+
+try:
+    with open(GEOJSON_PATH, 'r', encoding='utf-8') as f:
+        KOREA_GEOJSON = json.load(f)
+    # GeoJSON 파일에서 지역명(CTPRVN_NM)을 매칭 키로 사용한다고 가정합니다.
+    FEATURE_ID_KEY = "properties.CTPRVN_NM"
+except FileNotFoundError:
+    pass # 파일이 없으면 KOREA_GEOJSON은 None으로 남습니다.
+
+
+# -----------------------------------------------------------------------------
+# 3. 데이터 로드 및 전처리 함수 (이전과 동일)
 # -----------------------------------------------------------------------------
 @st.cache_data
 def load_and_process_data():
@@ -55,7 +71,6 @@ def load_and_process_data():
     target_subjects = ['총류', '철학', '종교', '사회과학', '순수과학', '기술과학', '예술', '언어', '문학', '역사']
     target_ages = ['어린이', '청소년', '성인']
 
-    # ... (데이터 로드 및 지역/연도/카운트 추출 로직은 이전과 동일하게 유지) ...
     for item in files:
         file_path = os.path.join(data_dir, item['file'])
         if not os.path.exists(file_path): continue
@@ -70,6 +85,20 @@ def load_and_process_data():
 
             df['Region_Fixed'] = df.iloc[:, 3].astype(str).str.strip()
             df = df[df['Region_Fixed'] != 'nan']
+            
+            # GeoJSON과의 매칭을 위해 지역명 조정 (GeoJSON 내 지역명과 정확히 일치하도록)
+            # GeoJSON 파일에 따라 '제주' -> '제주특별자치도', '경기' -> '경기도' 등으로 변경이 필요할 수 있습니다.
+            # TL_SCCO_CTPRVN.json 파일은 통상 '제주특별자치도'와 같은 긴 이름을 사용합니다.
+            region_name_map = {
+                '서울': '서울특별시', '부산': '부산광역시', '대구': '대구광역시', 
+                '인천': '인천광역시', '광주': '광주광역시', '대전': '대전광역시', 
+                '울산': '울산광역시', '세종': '세종특별자치시', '경기': '경기도', 
+                '강원': '강원특별자치도', '충북': '충청북도', '충남': '충청남도', 
+                '전북': '전북특별자치도', '전남': '전라남도', '경북': '경상북도', 
+                '경남': '경상남도', '제주': '제주특별자치도'
+            }
+            df['Region_Geo'] = df['Region_Fixed'].map(region_name_map).fillna(df['Region_Fixed'])
+
         except Exception: continue
         
         extracted_rows = []
@@ -85,7 +114,8 @@ def load_and_process_data():
 
             if subject and age and mat_type:
                 numeric_values = pd.to_numeric(df[col], errors='coerce').fillna(0)
-                temp_df = pd.DataFrame({'Region': df['Region_Fixed'], 'Value': numeric_values})
+                # GeoJSON 매칭을 위해 Region_Geo 사용
+                temp_df = pd.DataFrame({'Region': df['Region_Geo'], 'Value': numeric_values}) 
                 region_sums = temp_df.groupby('Region')['Value'].sum()
 
                 for region_name, val in region_sums.items():
@@ -108,12 +138,13 @@ def load_and_process_data():
     final_df = pd.concat(all_data, ignore_index=True)
     final_df['Count_Unit'] = final_df['Count'] / UNIT_DIVISOR 
     
-    # 🚨 인구당 대출 권수 계산
+    # 인구당 대출 권수 계산
     def calculate_per_capita(row):
+        # 인구수 맵핑은 짧은 지역명으로 다시 복원하여 사용
+        short_region_name = next((k for k, v in region_name_map.items() if v == row['Region']), row['Region'])
         year = row['Year']
-        region = row['Region']
         count = row['Count']
-        population = REGION_POPULATION.get(region, {}).get(year, 1) * 10000 
+        population = REGION_POPULATION.get(short_region_name, {}).get(year, 1) * 10000 
         return count / population * 100000 if population > 0 else 0
         
     final_df['Count_Per_Capita'] = final_df.apply(calculate_per_capita, axis=1)
@@ -121,13 +152,13 @@ def load_and_process_data():
     return final_df
 
 # -----------------------------------------------------------------------------
-# 3. 데이터 로드 실행
+# 4. 데이터 로드 실행
 # -----------------------------------------------------------------------------
 with st.spinner(f'⏳ 5개년 엑셀 파일 정밀 분석 및 데이터 통합 중 (단위: {UNIT_LABEL} 적용)...'):
     df = load_and_process_data()
 
 # -----------------------------------------------------------------------------
-# 4. 시각화 시작
+# 5. 시각화 시작
 # -----------------------------------------------------------------------------
 if df.empty:
     st.error("😭 데이터를 추출하지 못했습니다. 파일 경로를 확인해 주세요.")
@@ -135,32 +166,75 @@ if df.empty:
 
 base_df = df.copy()
 
+# 주제 분야 순서 정의 (6-B에서 재사용)
+all_subjects = base_df['Subject'].unique()
+subject_order = ['총류', '철학', '종교', '사회과학', '순수과학', '기술과학', '예술', '언어', '문학', '역사']
+sorted_subjects = [s for s in subject_order if s in all_subjects]
+
+
 st.header("📊 대출 현황 분석")
 st.subheader("1. 연도별 대출 추세 분석")
-    
 st.markdown("---") 
 
 # -------------------------------------------------------------
-# 5-1. 지역별 연간 대출 추세 (라인 차트) - 지역 필터 적용
+# 5-1. 지역별 연간 대출 현황 (코로플레스 맵 및 라인 차트)
 # -------------------------------------------------------------
-st.markdown("### 지역별 연간 대출 추세 (라인 차트)")
-st.caption("✅ **필터 적용 기준:** **지역**")
+st.markdown("### 🗺️ 지역별 대출 현황 분석")
 
-# 5-1 로컬 필터링 컨트롤러: 지역
-all_regions = sorted(base_df['Region'].unique())
-selected_region_5_1 = st.multiselect(
+if KOREA_GEOJSON is None:
+    st.error(f"GeoJSON 파일을 찾을 수 없어 지도 시각화를 구현할 수 없습니다. 경로: {GEOJSON_PATH}를 확인해주세요.")
+    st.markdown("---")
+else:
+    # 5-1-A. 코로플레스 맵 (지도)
+    st.caption("✅ **지도 시각화 기준:** **선택 연도의 지역별 총 대출 권수**를 색상 농도로 표현합니다.")
+    
+    # Year selector for the map
+    map_year = st.selectbox(
+        "📅 **지도 표시 기준 연도** 선택",
+        options=sorted(base_df['Year'].unique(), reverse=True),
+        index=0,
+        key='map_year_selector'
+    )
+    
+    map_data = base_df[base_df['Year'] == map_year].groupby('Region')['Count_Unit'].sum().reset_index()
+    
+    fig_map = px.choropleth(
+        map_data,
+        geojson=KOREA_GEOJSON,
+        locations='Region', # 데이터 컬럼: GeoJSON에서 매칭될 지역명
+        color='Count_Unit', # 데이터 컬럼: 색상에 매핑될 값
+        featureidkey=FEATURE_ID_KEY, # GeoJSON 속성 키: 'properties.CTPRVN_NM' (예상)
+        color_continuous_scale="Plasma", # 깔끔하고 대비되는 색상 스케일
+        projection="mercator",
+        title=f"**{map_year}년 지역별 대출 권수 분포 ({UNIT_LABEL} 단위)**",
+        labels={'Count_Unit': f'대출 권수 ({UNIT_LABEL})'},
+        height=600
+    )
+    
+    fig_map.update_geos(fitbounds="locations", visible=False)
+    fig_map.update_layout(coloraxis_colorbar=dict(tickformat=',.0f'))
+
+    st.plotly_chart(fig_map, use_container_width=True)
+    st.markdown("---") 
+
+# 5-1-B. Line Chart (추세 분석용)
+st.markdown("### 지역별 연간 대출 추세 (라인 차트)")
+st.caption("✅ **추세 분석:** 선택 지역 간 연도별 변화 추이를 확인합니다.")
+
+all_regions = sorted(base_df['Region'].unique().tolist()) # 지역명은 GeoJSON 매칭된 이름으로 사용됨
+selected_region_5_1_line = st.multiselect(
     "📍 **비교 대상 지역**을 선택하세요",
     all_regions,
-    default=['서울', '부산', '경기', '세종'],
-    key='filter_region_5_1'
+    default=['서울특별시', '부산광역시', '경기도', '세종특별자치시'],
+    key='filter_region_5_1_line' 
 )
 
-map_filtered_df = base_df[base_df['Region'].isin(selected_region_5_1)]
+line_filtered_df = base_df[base_df['Region'].isin(selected_region_5_1_line)]
 
-if map_filtered_df.empty:
+if line_filtered_df.empty:
     st.warning("선택한 지역의 데이터가 없어 라인 차트를 표시할 수 없습니다. 필터를 조정해 주세요.")
 else:
-    region_line_data = map_filtered_df.groupby(['Year', 'Region'])['Count_Unit'].sum().reset_index()
+    region_line_data = line_filtered_df.groupby(['Year', 'Region'])['Count_Unit'].sum().reset_index()
 
     fig_region_line = px.line(
         region_line_data,
@@ -168,18 +242,18 @@ else:
         y='Count_Unit',
         color='Region',
         markers=True,
-        title=f"**선택 지역별 연간 대출 권수 변화**",
+        title=f"**선택 지역별 연간 대출 권수 변화 추이**",
         labels={'Count_Unit': f'대출 권수 ({UNIT_LABEL})', 'Year': '연도'},
         color_discrete_sequence=px.colors.qualitative.Bold
     )
     fig_region_line.update_xaxes(type='category')
     fig_region_line.update_yaxes(tickformat=',.0f') 
     st.plotly_chart(fig_region_line, use_container_width=True)
-    
+
 st.markdown("---") 
     
 # -------------------------------------------------------------
-# 5-2. 자료유형별 연간 추세 (Stacked Bar Chart 고정) - 자료 유형 필터 적용
+# 5-2. 자료유형별 연간 추세 (Stacked Bar Chart 고정) - 자료 유형 필터 적용 (이전과 동일)
 # -------------------------------------------------------------
 st.markdown("### 자료유형별 연간 대출 추세")
 st.caption("✅ **필터 적용 기준:** **자료 유형**")
@@ -199,6 +273,7 @@ filtered_df_5_2 = base_df[base_df['Material'].isin(selected_material_5_2)]
 if filtered_df_5_2.empty:
     st.warning("선택한 자료 유형의 데이터가 없습니다. 필터를 조정해 주세요.")
 else:
+    # Stacked Bar Chart로 고정
     material_data = filtered_df_5_2.groupby(['Year', 'Material'])['Count_Unit'].sum().reset_index()
     
     fig_mat = px.bar(
@@ -220,7 +295,7 @@ st.markdown("---")
 
 
 # -------------------------------------------------------------
-# 5-3. 연령별 연간 추세 (Grouped Bar Chart) - 연령대 필터 적용
+# 5-3. 연령별 연간 추세 (Grouped Bar Chart) - 연령대 필터 적용 (이전과 동일)
 # -------------------------------------------------------------
 st.markdown("### 연령별 연간 대출 추세 (Grouped Bar Chart)")
 st.caption("✅ **필터 적용 기준:** **연령대**")
@@ -260,15 +335,11 @@ st.markdown("---")
 
 
 # -------------------------------------------------------------
-# 5-4. 주제별 연간 추세 (Line Chart) - 주제 분야 필터 적용
+# 5-4. 주제별 연간 추세 (Line Chart) - 주제 분야 필터 적용 (이전과 동일)
 # -------------------------------------------------------------
 st.markdown("### 주제별 연간 대출 추세 (Line Chart)")
 st.caption("✅ **필터 적용 기준:** **주제 분야**")
 
-# 5-4 로컬 필터링 컨트롤러: 주제 분야 및 순서 정의 (6-B에서 재사용)
-all_subjects = base_df['Subject'].unique()
-subject_order = ['총류', '철학', '종교', '사회과학', '순수과학', '기술과학', '예술', '언어', '문학', '역사']
-sorted_subjects = [s for s in subject_order if s in all_subjects]
 selected_subjects_5_4 = st.multiselect(
     "📖 **주제 분야**를 선택하세요 (선택된 주제만 표시)", 
     sorted_subjects, 
@@ -305,28 +376,26 @@ st.markdown("---")
 # -------------------------------------------------------------
 st.subheader("2. 상세 분포 분석 (특정 연도)")
 
-# 6. 공통 연도 로컬 필터링 컨트롤러 (슬라이더 크기 개선)
+# 6. 공통 연도 로컬 필터링 컨트롤러 (슬라이더 크기 개선 유지)
 col_year_header, col_year_metric = st.columns([1, 4])
 with col_year_header:
     st.header("기준 연도")
 with col_year_metric:
-    # 연도 슬라이더
     target_year = st.slider(
         "분석 대상 연도 선택", 
         2020, 2024, 2024, 
         key='detail_year_select_6',
-        label_visibility="collapsed" # 레이블을 숨깁니다.
+        label_visibility="collapsed" 
     )
-    # 선택된 연도를 Metric으로 강조하여 시각적으로 크게 보입니다.
     st.metric(label="선택된 연도", value=f"{target_year}년") 
 
-st.markdown("---") # 시각적 분리
+st.markdown("---") 
 
 detail_data = base_df[base_df['Year'] == target_year]
 
 if not detail_data.empty:
     
-    # --- 6-A. 지역별 순위 --- (인구 10만 명당 순위)
+    # --- 6-A. 지역별 순위 --- (인구 10만 명당 순위) (이전과 동일)
     st.markdown(f"### {target_year}년 지역별 대출 순위 (인구 10만 명당)")
     st.caption("✅ **의미 강화:** 절대 권수가 아닌 **인구 10만 명당 대출 권수**를 기준으로 순위를 매겨 지역별 비교의 의미를 높였습니다.")
     
@@ -345,38 +414,34 @@ if not detail_data.empty:
     st.plotly_chart(fig_bar_regional, use_container_width=True)
     st.markdown("---") 
 
-    # --- 6-B. 주제/연령대/자료유형 대출 비교 (히트맵 전환) ---
-    st.markdown(f"### 🎯 {target_year}년 주제별/연령별/자료유형별 상세 분포 (히트맵)")
+    # --- 6-B. 주제/연령/자료유형 대출 비교 (그룹 막대 차트 전환) ---
+    st.markdown(f"### 🎯 {target_year}년 주제별/연령별/자료유형별 상세 분포 (그룹 막대 차트)")
     
-    col_material_filter, col_spacer = st.columns([1, 4])
-    with col_material_filter:
-        # 히트맵용 자료유형 필터
-        material_for_heatmap = st.radio(
+    col_material_filter_6b, col_spacer_6b = st.columns([1, 4])
+    with col_material_filter_6b:
+        # 자료 유형 필터: 인쇄 또는 전자 중 하나를 선택
+        material_for_bar = st.radio(
             "자료 유형 선택",
-            ('인쇄자료', '전자자료', '전체 합산'),
-            key='heatmap_material_select',
+            ('인쇄자료', '전자자료'), 
+            key='bar_chart_material_select',
             horizontal=True
         )
 
-    # 필터링 적용
-    if material_for_heatmap != '전체 합산':
-        heatmap_data_filtered = detail_data[detail_data['Material'] == material_for_heatmap]
-        chart_title = f"{target_year}년 {material_for_heatmap} 대출 상세 분포 (히트맵)"
-    else:
-        heatmap_data_filtered = detail_data
-        chart_title = f"{target_year}년 전체 자료 대출 상세 분포 (히트맵)"
+    st.caption(f"✅ **분석 기준:** **X축(주제)**, **그룹(연령)**, **Y축(대출 권수)**. 현재 **{material_for_bar}** 데이터만 표시됩니다.")
 
-    # 그룹화 (Subject vs Age)
-    heatmap_data = heatmap_data_filtered.groupby(['Subject', 'Age'])['Count_Unit'].sum().reset_index()
-    
-    st.caption("✅ **분석 기준:** **X축(주제)**, **Y축(연령)**, **색상 농도(대출 권수)**")
-    
-    fig_heatmap = px.density_heatmap(
-        heatmap_data,
+    # 필터링 적용
+    bar_data_filtered = detail_data[detail_data['Material'] == material_for_bar]
+
+    # 그룹화 (Subject, Age)
+    bar_data = bar_data_filtered.groupby(['Subject', 'Age'])['Count_Unit'].sum().reset_index()
+    chart_title = f"{target_year}년 주제별/연령별 {material_for_bar} 대출 권수"
+
+    fig_bar_group = px.bar(
+        bar_data,
         x='Subject',
-        y='Age',
-        z='Count_Unit', # 대출 권수를 색상 농도(Z축)로
-        histfunc="sum",
+        y='Count_Unit',
+        color='Age', # 연령대를 그룹으로 묶습니다.
+        barmode='group',
         title=chart_title,
         labels={
             'Count_Unit': f'총 대출 권수 ({UNIT_LABEL})', 
@@ -387,18 +452,18 @@ if not detail_data.empty:
             "Age": ['어린이', '청소년', '성인'], 
             "Subject": subject_order
         },
-        color_continuous_scale=px.colors.sequential.Inferno, # 색상 팔레트 변경 (강렬한 색상)
+        color_discrete_sequence=px.colors.qualitative.Safe # 깔끔한 색상 팔레트
     )
 
     # 축 레이블 회전 및 사이즈 조정
-    fig_heatmap.update_xaxes(tickangle=45)
-    fig_heatmap.update_yaxes(autorange="reversed") # 연령대를 위에서부터 '어린이'로 정렬
-    fig_heatmap.update_layout(height=600)
+    fig_bar_group.update_xaxes(tickangle=45)
+    fig_bar_group.update_yaxes(tickformat=',.0f') 
+    fig_bar_group.update_layout(height=600)
 
-    st.plotly_chart(fig_heatmap, use_container_width=True)
+    st.plotly_chart(fig_bar_group, use_container_width=True)
     st.markdown("---") 
-
-    # --- 6-C. Pie Chart ---
+    
+    # --- 6-C. Pie Chart --- (이전과 동일)
     with st.container():
         st.markdown(f"### {target_year}년 대출 비율 분석 (Pie Chart)")
         st.caption("✅ **기준:** 상단의 연도 슬라이더에 따라 비율이 변경됩니다.")
