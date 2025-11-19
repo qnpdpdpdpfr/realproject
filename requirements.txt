@@ -1,4 +1,7 @@
 streamlit
 pandas
 plotly
-openpyxl
+geopandas
+shapely
+pyproj
+matplotlib
