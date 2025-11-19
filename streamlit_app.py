@@ -42,15 +42,14 @@ def load_and_process_data():
             continue
 
         try:
-            # 엑셀 파일 읽기 (engine='openpyxl' 필수)
-            # sheet_name=0은 첫 번째 시트를 읽는다는 의미입니다.
+            # 엑셀 파일 읽기
             df = pd.read_excel(file_path, engine='openpyxl', sheet_name=0)
             
         except Exception as e:
             st.error(f"{item['file']} 읽기 실패: {e}")
             continue
         
-        # 컬럼명 공백 제거 및 문자열 변환
+        # 컬럼명 공백 제거
         df.columns = [str(c).replace(' ', '').replace('\n', '').strip() for c in df.columns]
         
         # '지역' 컬럼 찾기
@@ -64,7 +63,6 @@ def load_and_process_data():
         for subj in subjects:
             cols = [c for c in df.columns if subj in c and ('대출' in c or '이용' in c) and '전자' not in c]
             if cols:
-                # 엑셀 데이터가 숫자 대신 문자열(-)이나 공백일 수 있어 errors='coerce'로 처리
                 for c in cols:
                     df[c] = pd.to_numeric(df[c], errors='coerce').fillna(0)
                     
@@ -114,9 +112,8 @@ def load_and_process_data():
 with st.spinner('대용량 엑셀 파일을 읽고 있습니다... 잠시만 기다려주세요 (약 1~2분 소요)'):
     df = load_and_process_data()
 
-# (이하 필터링 및 시각화 코드는 이전과 동일합니다)
 # -----------------------------------------------------------------------------
-# 3. 사이드바 컨트롤
+# 3. 사이드바 컨트롤 (수정됨)
 # -----------------------------------------------------------------------------
 st.sidebar.header("📊 데이터 필터링")
 
@@ -124,11 +121,20 @@ if df.empty:
     st.error("데이터를 처리하지 못했습니다. 파일명과 경로를 확인해주세요.")
     st.stop()
 
+# [에러 수정 코드 추가됨]
+# 지역 데이터 정제: 결측치 제거 및 문자열 변환
+df = df.dropna(subset=['Region'])
+df['Region'] = df['Region'].astype(str)
+
 all_regions = sorted(df['Region'].unique())
+
+# 지역이 너무 많을 경우 기본 선택 갯수 제한
+default_regions = all_regions[:5] if len(all_regions) > 0 else []
+
 selected_regions = st.sidebar.multiselect(
     "지역 선택 (다중 선택 가능)",
     all_regions,
-    default=all_regions[:5] 
+    default=default_regions
 )
 
 view_type = st.sidebar.radio(
@@ -156,6 +162,8 @@ if filtered_df.empty:
     st.info("선택한 조건에 해당하는 데이터가 없습니다.")
 else:
     st.subheader(f"📈 연도별 변화 추이 ({view_type})")
+    
+    # 라인 차트
     line_chart_df = filtered_df.groupby(['Year', 'Region', 'Category'])['Count'].sum().reset_index()
     
     fig_line = px.line(
@@ -174,6 +182,7 @@ else:
 
     st.divider()
 
+    # 바 차트
     st.subheader("📊 연도별 상세 비교")
     target_year = st.slider("비교할 연도를 선택하세요", 2020, 2024, 2024)
     
