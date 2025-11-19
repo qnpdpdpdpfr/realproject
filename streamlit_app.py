@@ -167,8 +167,9 @@ else:
         color='Region',
         markers=True,
         title=f"**선택 지역별 연간 대출 권수 변화**",
-        labels={'Count_Unit': f'대출 권수 ({UNIT_LABEL})', 'Year': '연도'},
-        color_discrete_sequence=px.colors.qualitative.Bold
+        labels={'Count_Unit': f'대출 권수 ({UNIT_LABEL})', 'Year': '연도', 'Region': '지역'}, # Region 레이블 추가
+        color_discrete_sequence=px.colors.qualitative.Bold,
+        hover_data={'Region': True, 'Count_Unit': True, 'Year': True} # 호버 데이터 명시
     )
     fig_region_line.update_xaxes(type='category')
     fig_region_line.update_yaxes(tickformat=',.0f') 
@@ -205,8 +206,9 @@ else:
         color='Material',
         barmode='stack',
         title=f"**자료유형별 연간 대출 총량 및 비율 변화**",
-        labels={'Count_Unit': f'대출 권수 ({UNIT_LABEL})', 'Year': '연도'},
-        color_discrete_sequence=px.colors.qualitative.T10 
+        labels={'Count_Unit': f'대출 권수 ({UNIT_LABEL})', 'Year': '연도', 'Material': '자료 유형'}, # Material 레이블 추가
+        color_discrete_sequence=px.colors.qualitative.T10,
+        hover_data={'Material': True, 'Count_Unit': True, 'Year': True} # 호버 데이터 명시
     )
 
     fig_mat.update_xaxes(type='category')
@@ -245,9 +247,10 @@ else:
         color='Age',
         barmode='group', 
         title=f"**연령별 연간 대출 권수 비교**",
-        labels={'Count_Unit': f'대출 권수 ({UNIT_LABEL})', 'Year': '연도'},
+        labels={'Count_Unit': f'대출 권수 ({UNIT_LABEL})', 'Year': '연도', 'Age': '연령대'}, # Age 레이블 추가
         category_orders={"Age": ['어린이', '청소년', '성인']},
-        color_discrete_sequence=px.colors.qualitative.Vivid
+        color_discrete_sequence=px.colors.qualitative.Vivid,
+        hover_data={'Age': True, 'Count_Unit': True, 'Year': True} # 호버 데이터 명시
     )
     fig_age_bar.update_xaxes(type='category')
     fig_age_bar.update_yaxes(tickformat=',.0f') 
@@ -286,8 +289,9 @@ else:
         color='Subject',
         markers=True,
         title=f"**주제별 연간 대출 권수 변화**",
-        labels={'Count_Unit': f'대출 권수 ({UNIT_LABEL})', 'Year': '연도'},
-        color_discrete_sequence=px.colors.qualitative.Dark24 
+        labels={'Count_Unit': f'대출 권수 ({UNIT_LABEL})', 'Year': '연도', 'Subject': '주제 분야'}, # Subject 레이블 추가
+        color_discrete_sequence=px.colors.qualitative.Dark24,
+        hover_data={'Subject': True, 'Count_Unit': True, 'Year': True} # 호버 데이터 명시
     )
     fig_subject_line.update_xaxes(type='category')
     fig_subject_line.update_yaxes(tickformat=',.0f') 
@@ -344,7 +348,8 @@ if not detail_data.empty:
                     title=f"**{age}**",
                     hole=.4,
                     color='Material',
-                    color_discrete_map={'인쇄자료': material_colors[0], '전자자료': material_colors[1]}
+                    color_discrete_map={'인쇄자료': material_colors[0], '전자자료': material_colors[1]},
+                    labels={'Count_Unit': f'대출 권수 ({UNIT_LABEL})', 'Material': '자료 유형'} # Pie Chart 레이블 추가
                 )
                 fig_pie_mat_pref.update_traces(textinfo='percent+label')
                 fig_pie_mat_pref.update_layout(
@@ -359,7 +364,7 @@ if not detail_data.empty:
     st.markdown("---") 
     
     # --- New 6-B. 연령대별 주제 분야 선호도 (Grouped Bar Chart) ---
-    st.markdown(f"### 📖 {target_year}년 연령대별 주제 분야 선호도") # 제목 변경됨: '연령별 대출 권수 비교' 제거
+    st.markdown(f"### 📖 {target_year}년 연령대별 주제 분야 선호도") 
 
     subject_preference_data = detail_data.groupby(['Age', 'Subject'])['Count_Unit'].sum().reset_index()
     
@@ -372,7 +377,8 @@ if not detail_data.empty:
         title=f"주제 분야별 연령대별 대출 비율 ({target_year}년)",
         labels={'Count_Unit': f'총 대출 권수 ({UNIT_LABEL})', 'Subject': '주제 분야', 'Age': '연령대'},
         category_orders={"Age": ['어린이', '청소년', '성인'], "Subject": subject_order},
-        color_discrete_sequence=px.colors.qualitative.Pastel
+        color_discrete_sequence=px.colors.qualitative.Pastel,
+        hover_data={'Subject': True, 'Age': True, 'Count_Unit': True} # 호버 데이터 명시
     )
     fig_subj_pref.update_xaxes(tickangle=45)
     fig_subj_pref.update_yaxes(tickformat=',.0f') 
@@ -395,7 +401,7 @@ if not detail_data.empty:
         color='Material', 
         size='Count_Unit', 
         size_max=70,       
-        hover_data=['Count_Unit'],
+        # hover_data=['Count_Unit'] # 기존 hover_data를 제거하고 아래 labels와 hover_data로 대체
         title=f"대출 상세 분포 (연령대 x 대출량 x 자료유형) ({target_year}년)",
         labels={
             'Count_Unit': f'총 대출 권수 ({UNIT_LABEL})',
@@ -405,7 +411,8 @@ if not detail_data.empty:
         category_orders={
             "Age": ['어린이', '청소년', '성인'], 
         },
-        color_discrete_sequence=px.colors.qualitative.Dark24 
+        color_discrete_sequence=px.colors.qualitative.Dark24,
+        hover_data={'Age': True, 'Material': True, 'Count_Unit': True} # 호버 데이터 명시
     )
 
     fig_multi_scatter.update_xaxes(type='category', categoryorder='array', categoryarray=['어린이', '청소년', '성인'])
@@ -448,3 +455,21 @@ if not detail_data.empty:
             names_col = 'Subject'
             title = f"주제 분야별 대출 권수 비율 ({target_year}년)"
             colors = px.colors.qualitative.Pastel
+
+        fig_pie = px.pie(
+            pie_data,
+            values='Count_Unit',
+            names=names_col,
+            title=title,
+            hole=.3, 
+            labels={'Count_Unit': f'대출 권수 ({UNIT_LABEL})', names_col: '분석 기준'}, # Pie Chart 레이블 추가
+            height=500,
+            color_discrete_sequence=colors
+        )
+        fig_pie.update_traces(textinfo='percent+label')
+        st.plotly_chart(fig_pie, use_container_width=True)
+        
+        
+# 6-1. 데이터 테이블
+with st.expander("원본 추출 데이터 테이블 확인"):
+    st.dataframe(base_df.sort_values(by=['Year', 'Region', 'Subject']), use_container_width=True)
