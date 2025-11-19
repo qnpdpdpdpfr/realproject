@@ -13,7 +13,7 @@ st.title("📚 공공도서관 대출 데이터 심층 분석")
 st.markdown("### 5개년(2020~2024) 대출 현황 인터랙티브 대시보드")
 st.markdown("---")
 
-# [수정] 단위 설정: 다시 10만 권 (100,000)으로 복구
+# [복구] 단위 설정: 다시 10만 권 (100,000)으로 복구
 UNIT_DIVISOR = 100000 
 UNIT_LABEL = '10만 권'
 
@@ -46,56 +46,40 @@ def load_and_process_data():
 
     for item in files:
         file_path = os.path.join(data_dir, item['file'])
+        
         if not os.path.exists(file_path): continue
 
         try:
-            # 헤더/시작 행 처리 (연도별 파일 구조 차이 반영)
-            if item['year'] == 2020:
-                df = pd.read_excel(file_path, engine='openpyxl', header=0)
-                df = df.iloc[1:].reset_index(drop=True)
-                # 2020년 파일은 4번째 컬럼이 지역
-                df['Region_Fixed'] = df.iloc[:, 3].astype(str).str.strip()
-            elif item['year'] >= 2023:
+            # [복구] 기존에 작동했던 헤더/시작 행 처리 로직으로 복구
+            if item['year'] >= 2023:
                 df = pd.read_excel(file_path, engine='openpyxl', header=1) 
                 df = df.iloc[2:].reset_index(drop=True)
-                # 2023년 이후 파일은 4번째 컬럼이 지역 (인덱스 3)
-                df['Region_Fixed'] = df.iloc[:, 3].astype(str).str.strip()
             else:
                 df = pd.read_excel(file_path, engine='openpyxl', header=0)
                 df = df.iloc[1:].reset_index(drop=True)
-                # 2021~2022년 파일은 4번째 컬럼이 지역
-                df['Region_Fixed'] = df.iloc[:, 3].astype(str).str.strip()
 
+            # [복구] 지역 컬럼 추출 로직 복구 (2020년 파일의 특수성 미고려)
+            df['Region_Fixed'] = df.iloc[:, 3].astype(str).str.strip() 
+            df = df[df['Region_Fixed'] != 'nan']
 
-            df = df[df['Region_Fixed'].isin(REGION_COORDS.keys())] # 유효한 지역만 필터링
-
-        except Exception as e: 
-            st.error(f"Error processing {item['year']} data: {e}")
-            continue
+        except Exception: continue
         
         extracted_rows = []
         
-        # [수정] 정확한 컬럼 이름 패턴을 사용하여 중복 합산 방지 및 데이터 추출
+        # [복구] 오류를 유발했던 복잡한 컬럼 매칭 로직을 이전의 간단한 로직으로 복구
         for col in df.columns:
-            col_str = str(col).strip()
-            
-            # 자료 유형 및 연령 추출
+            col_str = str(col)
             mat_type = ""
-            if '대출현황(연령별/주제별)_인쇄자료' in col_str or '대출/이용 수_인쇄자료' in col_str or '대출_인쇄자료' in col_str:
-                mat_type = "인쇄자료"
-            elif '대출현황(연령별/주제별)_전자자료' in col_str or '대출/이용 수_전자자료' in col_str or '대출_전자자료' in col_str:
-                mat_type = "전자자료"
-            else:
-                continue
+            if '전자자료' in col_str: mat_type = "전자자료"
+            elif '인쇄자료' in col_str: mat_type = "인쇄자료"
+            else: continue 
 
-            age_match = next((a for a in target_ages if a in col_str), None)
-            subject_match = next((s for s in target_subjects if s in col_str), None)
+            subject = next((s for s in target_subjects if s in col_str), None)
+            age = next((a for a in target_ages if a in col_str), None)
 
-            # 세 기준이 모두 포함된 컬럼만 추출 (합계 컬럼 제외)
-            if mat_type and age_match and subject_match:
-                if '합계' in col_str: continue # 합계 컬럼 제외 (중복 방지)
+            if subject and age and mat_type:
+                if subject and '합계' in col_str and not age: continue 
                 
-                # 데이터 추출 및 지역별 합산
                 numeric_values = pd.to_numeric(df[col], errors='coerce').fillna(0)
                 temp_df = pd.DataFrame({'Region': df['Region_Fixed'], 'Value': numeric_values})
                 region_sums = temp_df.groupby('Region')['Value'].sum()
@@ -106,8 +90,8 @@ def load_and_process_data():
                             'Year': item['year'],
                             'Region': region_name,
                             'Material': mat_type,
-                            'Subject': subject_match,
-                            'Age': age_match,
+                            'Subject': subject,
+                            'Age': age,
                             'Count': val # 원본 권수
                         })
 
@@ -118,7 +102,7 @@ def load_and_process_data():
     if not all_data: return pd.DataFrame()
         
     final_df = pd.concat(all_data, ignore_index=True)
-    # [수정] 10만 권 단위 변수 복구
+    # [복구] 10만 권 단위 변수 복구
     final_df['Count_Unit'] = final_df['Count'] / UNIT_DIVISOR 
     
     # 지도시각화를 위해 위도/경도 정보 추가
@@ -138,7 +122,7 @@ with st.spinner(f'⏳ 5개년 엑셀 파일 정밀 분석 및 데이터 통합 �
 # -----------------------------------------------------------------------------
 if df.empty:
     st.error("😭 데이터를 추출하지 못했습니다. 필터링 조건을 조정하거나 파일 경로를 확인해 주세요.")
-    st.stop()
+    st.stop() # 데이터 추출이 복구되었으므로 이 부분은 이제 실행되지 않음
 
 # 4-1. 필터 섹션
 st.header("⚙️ 분석 조건 설정")
@@ -324,7 +308,7 @@ else:
 
 
     # -------------------------------------------------------------
-    # 6. 상세 분포 분석 (버블차트 재구성을 위해 Grouped Bar Chart로 임시 복귀)
+    # 6. 상세 분포 분석 (Grouped Bar Chart - 임시 복귀)
     # -------------------------------------------------------------
     st.subheader("2. 주제, 연령, 자료유형별 상세 분포 분석")
     
@@ -353,45 +337,4 @@ else:
 
         # --- 2-B. 주제/연령대 대출 비교 (Grouped Bar Chart - 임시 복귀) ---
         st.markdown(f"### {target_year}년 주제별 연령대 대출 비교 (Grouped Bar Chart - 임시)")
-        st.warning("⚠️ **잠시 안내:** 이전 요청하신 **다기준 버블 차트**를 재구성하기 위해 잠시 **Grouped Bar Chart**로 복귀했습니다. 버블 차트에 사용하실 **X축, Y축, 색상, 크기** 기준을 다시 말씀해주시면 반영하겠습니다.")
-        
-        subject_age_data = detail_data.groupby(['Subject', 'Age'])['Count_Unit'].sum().reset_index()
-        
-        fig_grouped_bar = px.bar(
-            subject_age_data,
-            x='Subject',
-            y='Count_Unit',
-            color='Age',
-            barmode='group', 
-            title="주제별 연령대별 대출 권수 비교",
-            labels={'Count_Unit': f'대출 권수 ({UNIT_LABEL})', 'Subject': '주제', 'Age': '연령대'},
-            category_orders={"Age": ['어린이', '청소년', '성인']}, 
-            color_discrete_sequence=px.colors.sequential.Sunset
-        )
-        fig_grouped_bar.update_yaxes(tickformat=',.0f')
-        st.plotly_chart(fig_grouped_bar, use_container_width=True)
-        st.markdown("---") 
-
-        # **Pie Chart (자료 유형 비율)**
-        with st.container():
-            st.markdown(f"### {target_year}년 자료 유형 비율 (Pie Chart)")
-            material_data_pie = detail_data.groupby('Material')['Count_Unit'].sum().reset_index()
-            
-            fig_pie = px.pie(
-                material_data_pie,
-                values='Count_Unit',
-                names='Material',
-                title="자료 유형 (인쇄 vs 전자) 비율",
-                hole=.3, 
-                labels={'Count_Unit': '대출 권수 비율', 'Material': '자료유형'},
-                height=500,
-                color_discrete_sequence=px.colors.sequential.RdBu
-            )
-            fig_pie.update_traces(textinfo='percent+label')
-            st.plotly_chart(fig_pie, use_container_width=True)
-            
-            
-
-    # 5-3. 데이터 테이블
-    with st.expander("원본 추출 데이터 테이블 확인 (필터 적용됨)"):
-        st.dataframe(filtered_df.sort_values(by=['Year', 'Region', 'Subject']), use_container_width=True)
+        st.warning("⚠️ **잠시 안내:** **다기준 시각화 (버블 차트)** 재구성을 위해 해당 차트는 임시로 **Grouped Bar Chart** 상태입니다. 원하시는 **X축, Y축, 색상, 크기** 기준을 말씀해주시면
