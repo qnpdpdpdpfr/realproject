@@ -44,7 +44,8 @@ REGION_POPULATION = {
 # -----------------------------------------------------------------------------
 GEOJSON_PATH = os.path.join("data", "TL_SCCO_CTPRVN.json")
 KOREA_GEOJSON = None
-FEATURE_ID_KEY = "properties.CTPRVN_NM" # GeoJSON 매칭 키 (지역명)
+# GeoJSON 파일 내 지역명을 찾는 키. 실패 시 'properties.CTPRVN_CD'로 변경 시도 필요.
+FEATURE_ID_KEY = "properties.CTPRVN_NM" 
 
 try:
     with open(GEOJSON_PATH, 'r', encoding='utf-8') as f:
@@ -76,15 +77,12 @@ def load_and_process_data():
         '인천': '인천광역시', '광주': '광주광역시', '대전': '대전광역시', 
         '울산': '울산광역시', '세종': '세종특별자치시', '경기': '경기도', 
         '강원': '강원특별자치도', '충북': '충청북도', '충남': '충청남도', 
-        # TL_SCCO_CTPRVN.json 파일은 '전북특별자치도' 대신 '전라북도'를 사용할 가능성, 
-        # 최신 데이터에 맞춰 '전북특별자치도'와 '강원특별자치도'를 우선 사용
         '전북': '전북특별자치도', 
         '전남': '전라남도', '경북': '경상북도', 
         '경남': '경상남도', '제주': '제주특별자치도'
     }
     
-    # 만약 GeoJSON 파일이 '전라북도'와 '강원도'를 사용한다면:
-    # region_name_map = {... '강원': '강원도', '전북': '전라북도', ...}
+    # 🚨 참고: GeoJSON 파일이 '전라북도'/'강원도'를 사용한다면 여기서 수정 필요
 
     for item in files:
         file_path = os.path.join(data_dir, item['file'])
@@ -192,7 +190,7 @@ if KOREA_GEOJSON is None:
     st.markdown("---")
 else:
     # 5-1-A. 코로플레스 맵 (지도)
-    st.caption("✅ **지도 시각화 기준:** **선택 연도의 지역별 총 대출 권수**를 색상 농도로 표현합니다.")
+    st.caption(f"✅ **지도 시각화 기준:** **선택 연도의 지역별 총 대출 권수**를 **단일 청색 계열의 농도**로 표현합니다.")
     
     # Year selector for the map
     map_year = st.selectbox(
@@ -204,29 +202,13 @@ else:
     
     map_data = base_df[base_df['Year'] == map_year].groupby('Region')['Count_Unit'].sum().reset_index()
     
-    # 🚨 디버깅: 매칭이 안 되는 경우를 대비해 GeoJSON의 지역명과 데이터의 지역명을 비교하는 표를 임시로 추가합니다.
-    with st.expander("⚠️ 지도 매칭 디버깅 정보 (필요시 확인)"):
-        geojson_regions = [feature['properties']['CTPRVN_NM'] for feature in KOREA_GEOJSON['features']]
-        data_regions = map_data['Region'].unique().tolist()
-        missing_in_data = [g for g in geojson_regions if g not in data_regions]
-        missing_in_geojson = [d for d in data_regions if d not in geojson_regions]
-        st.write("---")
-        st.markdown("**데이터 지역명 (DF) 예시:**")
-        st.code(str(data_regions[:5]) + '...')
-        st.markdown("**GeoJSON 지역명 예시:**")
-        st.code(str(geojson_regions[:5]) + '...')
-        if missing_in_data or missing_in_geojson:
-             st.warning("일부 지역명 불일치 가능성이 있습니다. 지도가 비어있다면 이 부분이 원인입니다.")
-        else:
-             st.success("GeoJSON과 데이터 지역명이 일치합니다. 지도가 잘 표시될 것입니다.")
-
     fig_map = px.choropleth(
         map_data,
         geojson=KOREA_GEOJSON,
         locations='Region', 
         color='Count_Unit', 
         featureidkey=FEATURE_ID_KEY, 
-        color_continuous_scale="Blues", # ➡️ 단일 청색 계열로 변경
+        color_continuous_scale="Blues", # 단일 청색 계열 (같은 컬러 내에서 진하기만 다르게)
         projection="mercator",
         title=f"**{map_year}년 지역별 대출 권수 분포 ({UNIT_LABEL} 단위)**",
         labels={'Count_Unit': f'대출 권수 ({UNIT_LABEL})'},
