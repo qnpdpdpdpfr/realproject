@@ -349,31 +349,33 @@ if not detail_data.empty:
     st.markdown("---") 
 
     # -------------------------------------------------------------------------
-    # 💥 6-B. 다차원 산점도(Multi-dimensional Scatter Plot)
+    # 💥 6-B. 다차원 산점도(Multi-dimensional Scatter Plot)로 교체
+    # (X=Age, Y=Count, Color=Material, Symbol=Subject, Size=Count)
     # -------------------------------------------------------------------------
-    st.markdown(f"### 🎯 {target_year}년 주제별/연령별/자료유형별 상세 분포 (다차원 산점도)")
+    st.markdown(f"### 🎯 {target_year}년 연령별/주제별/자료유형별 상세 분포 (다차원 산점도)")
     
     col_material_filter, col_spacer = st.columns([1, 4])
     with col_material_filter:
         # 지역 선택 필터를 사용하여 특정 지역의 분포를 볼 수 있도록 합니다.
-        st.caption("📌 **시각화 기준:** X(주제), Y(대출량), 크기(대출량), 색상(자료유형), 모양(연령대)")
+        st.caption("📌 **시각화 기준:** X(**연령대**), Y(대출량), 크기(대출량), 색상(**자료유형**), 모양(**주제 분야**)")
         
     # 그룹화 (Subject, Age, Material 기준)
     scatter_data = detail_data.groupby(['Subject', 'Age', 'Material'])['Count_Unit'].sum().reset_index()
     
-    st.caption("✅ **분석:** 점의 크기와 Y축이 클수록 대출량이 많음을 의미하며, 색상과 모양으로 자료유형 및 연령대를 구분합니다.")
+    # 명확한 범례 설명을 위한 캡션 추가
+    st.caption("✅ **범례 설명:** **색상**으로 자료유형(인쇄 vs 전자)을, **모양**으로 주제 분야(총류, 문학 등)를 구분하며, 점의 크기와 Y축이 클수록 대출량이 많음을 의미합니다.")
     
     # 다차원 산점도 (Scatter Plot) 생성
     fig_multi_scatter = px.scatter(
         scatter_data,
-        x='Subject', # X축: 주제
-        y='Count_Unit', # Y축: 대출 권수
+        x='Age',          # X축: 연령 (요청에 따라 변경)
+        y='Count_Unit',   # Y축: 대출 권수
         color='Material', # 색상: 자료 유형 (인쇄/전자)
-        symbol='Age',     # 심볼: 연령대 (어린이/청소년/성인)
+        symbol='Subject', # 심볼: 주제 (요청에 따라 변경)
         size='Count_Unit', # 크기: 대출 권수 (양을 시각적으로 강조)
-        size_max=70,       # <<<<<<<<<<<< 점의 크기를 대폭 확대 (최대 70으로 설정)
+        size_max=70,       # 점의 크기를 대폭 확대
         hover_data=['Count_Unit'],
-        title=f"{target_year}년 대출 상세 분포 (주제 x 대출량 x 자료유형 x 연령대)",
+        title=f"{target_year}년 대출 상세 분포 (연령대 x 대출량 x 자료유형 x 주제 분야)",
         labels={
             'Count_Unit': f'총 대출 권수 ({UNIT_LABEL})',
             'Subject': '주제',
@@ -389,7 +391,7 @@ if not detail_data.empty:
     )
 
     # 축 레이블 회전 및 레이아웃 조정
-    fig_multi_scatter.update_xaxes(tickangle=45, categoryorder='array', categoryarray=subject_order)
+    fig_multi_scatter.update_xaxes(type='category', categoryorder='array', categoryarray=['어린이', '청소년', '성인'])
     fig_multi_scatter.update_yaxes(tickformat=',.0f')
     fig_multi_scatter.update_layout(height=600, legend_title_text='범례')
     fig_multi_scatter.update_traces(marker=dict(line=dict(width=1, color='DarkSlateGrey')), opacity=0.8)
