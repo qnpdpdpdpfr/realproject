@@ -7,3 +7,4 @@ pyproj
 matplotlib
 folium
 streamlit-folium
+seaborn
