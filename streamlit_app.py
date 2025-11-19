@@ -44,8 +44,8 @@ REGION_POPULATION = {
 # -----------------------------------------------------------------------------
 GEOJSON_PATH = os.path.join("data", "TL_SCCO_CTPRVN.json")
 KOREA_GEOJSON = None
-# GeoJSON 파일 내 지역명을 찾는 키. 실패 시 'properties.CTPRVN_CD'로 변경 시도 필요.
-FEATURE_ID_KEY = "properties.CTPRVN_NM" 
+# ⭐️ GeoJSON 매칭 키를 지역 코드(CTPRVN_CD)로 변경합니다. (가장 흔한 GeoJSON 문제 해결 방법)
+FEATURE_ID_KEY = "properties.CTPRVN_CD" 
 
 try:
     with open(GEOJSON_PATH, 'r', encoding='utf-8') as f:
@@ -71,18 +71,17 @@ def load_and_process_data():
     target_subjects = ['총류', '철학', '종교', '사회과학', '순수과학', '기술과학', '예술', '언어', '문학', '역사']
     target_ages = ['어린이', '청소년', '성인']
 
-    # GeoJSON 매칭을 위한 지역명 맵핑 강화 (GeoJSON 파일에서 사용하는 긴 지역명)
-    region_name_map = {
-        '서울': '서울특별시', '부산': '부산광역시', '대구': '대구광역시', 
-        '인천': '인천광역시', '광주': '광주광역시', '대전': '대전광역시', 
-        '울산': '울산광역시', '세종': '세종특별자치시', '경기': '경기도', 
-        '강원': '강원특별자치도', '충북': '충청북도', '충남': '충청남도', 
-        '전북': '전북특별자치도', 
-        '전남': '전라남도', '경북': '경상북도', 
-        '경남': '경상남도', '제주': '제주특별자치도'
+    # GeoJSON 매칭을 위해 지역 이름 대신 지역 코드를 사용합니다.
+    region_code_map = {
+        '서울': '11', '부산': '26', '대구': '27', 
+        '인천': '28', '광주': '29', '대전': '30', 
+        '울산': '31', '세종': '36', '경기': '41', 
+        '강원': '51', '충북': '43', '충남': '44', 
+        '전북': '53', '전남': '46', '경북': '47', 
+        '경남': '48', '제주': '50'
     }
-    
-    # 🚨 참고: GeoJSON 파일이 '전라북도'/'강원도'를 사용한다면 여기서 수정 필요
+    # 역 매핑 (인구 계산용)
+    short_region_name_map = {v: k for k, v in region_code_map.items()}
 
     for item in files:
         file_path = os.path.join(data_dir, item['file'])
@@ -99,8 +98,8 @@ def load_and_process_data():
             df['Region_Fixed'] = df.iloc[:, 3].astype(str).str.strip()
             df = df[df['Region_Fixed'] != 'nan']
             
-            # GeoJSON 매칭에 사용할 긴 지역명 컬럼 생성
-            df['Region_Geo'] = df['Region_Fixed'].map(region_name_map).fillna(df['Region_Fixed'])
+            # ⭐️ 지역 이름(ex: 서울)을 GeoJSON 매칭에 사용할 지역 코드(ex: 11)로 변환
+            df['Region_Code'] = df['Region_Fixed'].map(region_code_map).fillna(df['Region_Fixed'])
 
         except Exception: continue
         
@@ -117,15 +116,17 @@ def load_and_process_data():
 
             if subject and age and mat_type:
                 numeric_values = pd.to_numeric(df[col], errors='coerce').fillna(0)
-                # GeoJSON 매칭을 위해 Region_Geo 사용
-                temp_df = pd.DataFrame({'Region': df['Region_Geo'], 'Value': numeric_values}) 
+                
+                # ⭐️ 그룹화 및 데이터 저장 시, Region 컬럼에 지역 코드를 사용
+                temp_df = pd.DataFrame({'Region': df['Region_Code'], 'Value': numeric_values}) 
                 region_sums = temp_df.groupby('Region')['Value'].sum()
 
-                for region_name, val in region_sums.items():
-                    if val > 0:
+                for region_code, val in region_sums.items():
+                    if val > 0 and len(str(region_code)) == 2: # 지역 코드(2자리 숫자)만 저장
+                        # GeoJSON 매칭 키가 코드이므로 Region은 코드가 됩니다.
                         extracted_rows.append({
                             'Year': item['year'],
-                            'Region': region_name,
+                            'Region': str(region_code), # 코드는 문자열로 저장
                             'Material': mat_type,
                             'Subject': subject,
                             'Age': age,
@@ -143,8 +144,10 @@ def load_and_process_data():
     
     # 인구당 대출 권수 계산
     def calculate_per_capita(row):
-        # 인구수 맵핑은 짧은 지역명으로 다시 복원하여 사용
-        short_region_name = next((k for k, v in region_name_map.items() if v == row['Region']), row['Region'])
+        # ⭐️ 인구 계산 시에는 코드(Region)를 짧은 지역명으로 역변환하여 사용
+        short_region_name = short_region_name_map.get(row['Region'], None)
+        if not short_region_name: return 0 
+        
         year = row['Year']
         count = row['Count']
         population = REGION_POPULATION.get(short_region_name, {}).get(year, 1) * 10000 
@@ -205,10 +208,10 @@ else:
     fig_map = px.choropleth(
         map_data,
         geojson=KOREA_GEOJSON,
-        locations='Region', 
+        locations='Region', # 이제 이 컬럼에는 지역 코드(ex: '11')가 들어 있습니다.
         color='Count_Unit', 
-        featureidkey=FEATURE_ID_KEY, 
-        color_continuous_scale="Blues", # 단일 청색 계열 (같은 컬러 내에서 진하기만 다르게)
+        featureidkey=FEATURE_ID_KEY, # GeoJSON의 지역 코드를 사용합니다.
+        color_continuous_scale="Blues", # 단일 청색 계열
         projection="mercator",
         title=f"**{map_year}년 지역별 대출 권수 분포 ({UNIT_LABEL} 단위)**",
         labels={'Count_Unit': f'대출 권수 ({UNIT_LABEL})'},
@@ -225,29 +228,44 @@ else:
 st.markdown("### 지역별 연간 대출 추세 (라인 차트)")
 st.caption("✅ **추세 분석:** 선택 지역 간 연도별 변화 추이를 확인합니다.")
 
-all_regions = sorted(base_df['Region'].unique().tolist()) # 지역명은 GeoJSON 매칭된 이름으로 사용됨
+# 라인 차트에서는 지역 코드를 다시 지역 이름으로 표시해야 하므로, 데이터프레임을 복사하여 임시로 지역 이름 컬럼을 추가합니다.
+# 이전에 사용된 region_code_map의 역 매핑을 이용
+region_name_map = {
+    '11': '서울특별시', '26': '부산광역시', '27': '대구광역시', 
+    '28': '인천광역시', '29': '광주광역시', '30': '대전광역시', 
+    '31': '울산광역시', '36': '세종특별자치시', '41': '경기도', 
+    '51': '강원특별자치도', '43': '충청북도', '44': '충청남도', 
+    '53': '전북특별자치도', '46': '전라남도', '47': '경상북도', 
+    '48': '경상남도', '50': '제주특별자치도'
+}
+
+line_df = base_df.copy()
+line_df['Region_Name'] = line_df['Region'].map(region_name_map).fillna(line_df['Region'])
+
+
+all_regions_name = sorted(line_df['Region_Name'].unique().tolist()) 
 selected_region_5_1_line = st.multiselect(
     "📍 **비교 대상 지역**을 선택하세요",
-    all_regions,
+    all_regions_name,
     default=['서울특별시', '부산광역시', '경기도', '세종특별자치시'],
     key='filter_region_5_1_line' 
 )
 
-line_filtered_df = base_df[base_df['Region'].isin(selected_region_5_1_line)]
+line_filtered_df = line_df[line_df['Region_Name'].isin(selected_region_5_1_line)]
 
 if line_filtered_df.empty:
     st.warning("선택한 지역의 데이터가 없어 라인 차트를 표시할 수 없습니다. 필터를 조정해 주세요.")
 else:
-    region_line_data = line_filtered_df.groupby(['Year', 'Region'])['Count_Unit'].sum().reset_index()
+    region_line_data = line_filtered_df.groupby(['Year', 'Region_Name'])['Count_Unit'].sum().reset_index()
 
     fig_region_line = px.line(
         region_line_data,
         x='Year',
         y='Count_Unit',
-        color='Region',
+        color='Region_Name', # 지역 이름으로 라벨 표시
         markers=True,
         title=f"**선택 지역별 연간 대출 권수 변화 추이**",
-        labels={'Count_Unit': f'대출 권수 ({UNIT_LABEL})', 'Year': '연도'},
+        labels={'Count_Unit': f'대출 권수 ({UNIT_LABEL})', 'Year': '연도', 'Region_Name': '지역'},
         color_discrete_sequence=px.colors.qualitative.Bold
     )
     fig_region_line.update_xaxes(type='category')
@@ -257,7 +275,7 @@ else:
 st.markdown("---") 
     
 # -------------------------------------------------------------
-# 5-2. 자료유형별 연간 추세 (Stacked Bar Chart 고정) - 이전과 동일
+# 5-2. 자료유형별 연간 추세 (Stacked Bar Chart 고정) - 이하 동일
 # -------------------------------------------------------------
 st.markdown("### 자료유형별 연간 대출 추세")
 st.caption("✅ **필터 적용 기준:** **자료 유형**")
@@ -299,7 +317,7 @@ st.markdown("---")
 
 
 # -------------------------------------------------------------
-# 5-3. 연령별 연간 추세 (Grouped Bar Chart) - 이전과 동일
+# 5-3. 연령별 연간 추세 (Grouped Bar Chart) - 이하 동일
 # -------------------------------------------------------------
 st.markdown("### 연령별 연간 대출 추세 (Grouped Bar Chart)")
 st.caption("✅ **필터 적용 기준:** **연령대**")
@@ -334,178 +352,4 @@ else:
     )
     fig_age_bar.update_xaxes(type='category')
     fig_age_bar.update_yaxes(tickformat=',.0f') 
-    st.plotly_chart(fig_age_bar, use_container_width=True)
-st.markdown("---") 
-
-
-# -------------------------------------------------------------
-# 5-4. 주제별 연간 추세 (Line Chart) - 이전과 동일
-# -------------------------------------------------------------
-st.markdown("### 주제별 연간 대출 추세 (Line Chart)")
-st.caption("✅ **필터 적용 기준:** **주제 분야**")
-
-selected_subjects_5_4 = st.multiselect(
-    "📖 **주제 분야**를 선택하세요 (선택된 주제만 표시)", 
-    sorted_subjects, 
-    default=sorted_subjects,
-    key='filter_subject_5_4'
-)
-
-# 5-4 필터링 적용
-filtered_df_5_4 = base_df[base_df['Subject'].isin(selected_subjects_5_4)]
-
-if filtered_df_5_4.empty:
-    st.warning("선택한 주제 분야의 데이터가 없습니다. 필터를 조정해 주세요.")
-else:
-    subject_line_data = filtered_df_5_4.groupby(['Year', 'Subject'])['Count_Unit'].sum().reset_index()
-    
-    fig_subject_line = px.line(
-        subject_line_data,
-        x='Year',
-        y='Count_Unit',
-        color='Subject',
-        markers=True,
-        title=f"**주제별 연간 대출 권수 변화**",
-        labels={'Count_Unit': f'대출 권수 ({UNIT_LABEL})', 'Year': '연도'},
-        color_discrete_sequence=px.colors.qualitative.Dark24 
-    )
-    fig_subject_line.update_xaxes(type='category')
-    fig_subject_line.update_yaxes(tickformat=',.0f') 
-    st.plotly_chart(fig_subject_line, use_container_width=True)
-st.markdown("---") 
-
-
-# -------------------------------------------------------------
-# 6. 상세 분포 분석 (특정 연도)
-# -------------------------------------------------------------
-st.subheader("2. 상세 분포 분석 (특정 연도)")
-
-# 6. 공통 연도 로컬 필터링 컨트롤러 (슬라이더 크기 개선 유지)
-col_year_header, col_year_metric = st.columns([1, 4])
-with col_year_header:
-    st.header("기준 연도")
-with col_year_metric:
-    target_year = st.slider(
-        "분석 대상 연도 선택", 
-        2020, 2024, 2024, 
-        key='detail_year_select_6',
-        label_visibility="collapsed" 
-    )
-    st.metric(label="선택된 연도", value=f"{target_year}년") 
-
-st.markdown("---") 
-
-detail_data = base_df[base_df['Year'] == target_year]
-
-if not detail_data.empty:
-    
-    # --- 6-A. 지역별 순위 --- (인구 10만 명당 순위)
-    st.markdown(f"### {target_year}년 지역별 대출 순위 (인구 10만 명당)")
-    st.caption("✅ **의미 강화:** 절대 권수가 아닌 **인구 10만 명당 대출 권수**를 기준으로 순위를 매겨 지역별 비교의 의미를 높였습니다.")
-    
-    regional_data_per_capita = detail_data.groupby('Region')['Count_Per_Capita'].sum().reset_index()
-    
-    fig_bar_regional = px.bar(
-        regional_data_per_capita.sort_values('Count_Per_Capita', ascending=False), 
-        x='Region', 
-        y='Count_Per_Capita', 
-        color='Region',
-        title=f"지역별 인구 10만 명당 총 대출 권수 순위 ({target_year}년)",
-        labels={'Count_Per_Capita': '인구 10만 명당 대출 권수', 'Region': '지역'},
-        color_discrete_sequence=px.colors.qualitative.Bold
-    )
-    fig_bar_regional.update_yaxes(tickformat=',.0f')
-    st.plotly_chart(fig_bar_regional, use_container_width=True)
-    st.markdown("---") 
-
-    # --- 6-B. 주제/연령/자료유형 대출 비교 (그룹 막대 차트) ---
-    st.markdown(f"### 🎯 {target_year}년 주제별/연령별/자료유형별 상세 분포 (그룹 막대 차트)")
-    
-    col_material_filter_6b, col_spacer_6b = st.columns([1, 4])
-    with col_material_filter_6b:
-        # 자료 유형 필터: 인쇄 또는 전자 중 하나를 선택
-        material_for_bar = st.radio(
-            "자료 유형 선택",
-            ('인쇄자료', '전자자료'), 
-            key='bar_chart_material_select',
-            horizontal=True
-        )
-
-    st.caption(f"✅ **분석 기준:** **X축(주제)**, **그룹(연령)**, **Y축(대출 권수)**. 현재 **{material_for_bar}** 데이터만 표시됩니다.")
-
-    # 필터링 적용
-    bar_data_filtered = detail_data[detail_data['Material'] == material_for_bar]
-
-    # 그룹화 (Subject, Age)
-    bar_data = bar_data_filtered.groupby(['Subject', 'Age'])['Count_Unit'].sum().reset_index()
-    chart_title = f"{target_year}년 주제별/연령별 {material_for_bar} 대출 권수"
-
-    fig_bar_group = px.bar(
-        bar_data,
-        x='Subject',
-        y='Count_Unit',
-        color='Age', # 연령대를 그룹으로 묶습니다.
-        barmode='group',
-        title=chart_title,
-        labels={
-            'Count_Unit': f'총 대출 권수 ({UNIT_LABEL})', 
-            'Subject': '주제', 
-            'Age': '연령대'
-        },
-        category_orders={
-            "Age": ['어린이', '청소년', '성인'], 
-            "Subject": subject_order
-        },
-        color_discrete_sequence=px.colors.qualitative.Safe 
-    )
-
-    # 축 레이블 회전 및 사이즈 조정
-    fig_bar_group.update_xaxes(tickangle=45)
-    fig_bar_group.update_yaxes(tickformat=',.0f') 
-    fig_bar_group.update_layout(height=600)
-
-    st.plotly_chart(fig_bar_group, use_container_width=True)
-    st.markdown("---") 
-    
-    # --- 6-C. Pie Chart ---
-    with st.container():
-        st.markdown(f"### {target_year}년 대출 비율 분석 (Pie Chart)")
-        st.caption("✅ **기준:** 상단의 연도 슬라이더에 따라 비율이 변경됩니다.")
-        
-        # 6-C 로컬 필터링 컨트롤러: 기준 선택 (기존 유지)
-        pie_type = st.radio(
-            "비율 분석 기준 선택",
-            ('자료 유형 (인쇄/전자)', '연령대'),
-            key='pie_chart_criteria_6_C',
-            horizontal=True
-        )
-
-        if pie_type == '자료 유형 (인쇄/전자)':
-            pie_data = detail_data.groupby('Material')['Count_Unit'].sum().reset_index()
-            names_col = 'Material'
-            title = f"{target_year}년 자료 유형 (인쇄 vs 전자) 비율"
-            colors = px.colors.sequential.RdBu
-        else:
-            pie_data = detail_data.groupby('Age')['Count_Unit'].sum().reset_index()
-            names_col = 'Age'
-            title = f"{target_year}년 연령대별 대출 권수 비율"
-            colors = px.colors.qualitative.Vivid
-
-        fig_pie = px.pie(
-            pie_data,
-            values='Count_Unit',
-            names=names_col,
-            title=title,
-            hole=.3, 
-            labels={'Count_Unit': '대출 권수 비율'},
-            height=500,
-            color_discrete_sequence=colors
-        )
-        fig_pie.update_traces(textinfo='percent+label')
-        st.plotly_chart(fig_pie, use_container_width=True)
-        
-        
-
-# 6-1. 데이터 테이블
-with st.expander("원본 추출 데이터 테이블 확인"):
-    st.dataframe(base_df.sort_values(by=['Year', 'Region', 'Subject']), use_container_width=True)
+    st.plotly_chart(fig_age_bar, use
