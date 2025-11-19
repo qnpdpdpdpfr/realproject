@@ -184,7 +184,7 @@ else:
     
     # 추세선 기준 선택
     st.subheader("1. 연도별 대출 추세 (시간 흐름 분석)")
-    color_by = st.radio("추세선 색상 기준 선택", ['Region', 'Subject', 'Age', 'Material'], index=0, horizontal=True)
+    color_by = st.radio("기준 선택", ['지역', '주제', '연령', '자료유형'], index=0, horizontal=True)
     
     line_data = filtered_df.groupby(['Year', color_by])['Count'].sum().reset_index()
     
@@ -194,7 +194,7 @@ else:
         y='Count',
         color=color_by,
         markers=True,
-        title=f"지역 및 {color_by}별 연간 대출 권수 변화",
+        title=f"{color_by}별 연간 대출 권수 변화",
         labels={'Count': '대출 권수 (합계)', 'Year': '연도'},
         hover_name=color_by
     )
