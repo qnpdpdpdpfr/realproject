@@ -39,10 +39,11 @@ REGION_POPULATION = {
 }
 
 # -----------------------------------------------------------------------------
-# 2. 데이터 로드 및 전처리 함수 (이전과 동일)
+# 2. 데이터 로드 및 전처리 함수
 # -----------------------------------------------------------------------------
 @st.cache_data
 def load_and_process_data():
+    # 파일 목록은 이전과 동일
     files = [
         {'year': 2020, 'file': "2021('20년실적)도서관별통계입력데이터_공공도서관_(최종)_23.12.07..xlsx"},
         {'year': 2021, 'file': "2022년('21년 실적) 공공도서관 통계데이터 최종_23.12.06..xlsx"},
@@ -60,6 +61,7 @@ def load_and_process_data():
         if not os.path.exists(file_path): continue
 
         try:
+            # 1. 헤더 처리 및 데이터 로드 (이전과 동일)
             if item['year'] >= 2023:
                 df = pd.read_excel(file_path, engine='openpyxl', header=1)
                 df = df.iloc[2:].reset_index(drop=True)
@@ -67,9 +69,22 @@ def load_and_process_data():
                 df = pd.read_excel(file_path, engine='openpyxl', header=0)
                 df = df.iloc[1:].reset_index(drop=True)
 
+            # 2. **핵심 수정: 요약(총계) 행 필터링**
+            # 필터링하여 이중 합산을 방지하고, 상세 분석에 필요한 개별 도서관 데이터만 남김
+            # 이 필터링이 없으면 상세 항목별 합산 시 총계 값이 중복으로 더해짐
+            identifier_col = df.iloc[:, 1].astype(str).str.strip()
+            # '총계', '합계', '계' 등의 키워드가 포함된 행 제거
+            df = df[~identifier_col.str.contains('총계|합계|계', na=False, regex=True)]
+            
+            # 3. 지역 정보 고정 (지역 정보가 담긴 4번째 컬럼(index 3) 사용)
             df['Region_Fixed'] = df.iloc[:, 3].astype(str).str.strip()
+            # 지역 정보가 없는 (nan) 행도 제거
             df = df[df['Region_Fixed'] != 'nan']
-        except Exception: continue
+
+        except Exception as e:
+            # 에러 발생 시 로그 출력
+            print(f"Error processing file {item['file']}: {e}")
+            continue
         
         extracted_rows = []
         for col in df.columns:
@@ -83,8 +98,11 @@ def load_and_process_data():
             age = next((a for a in target_ages if a in col_str), None)
 
             if subject and age and mat_type:
+                # 숫자형으로 변환 및 NaN 처리
                 numeric_values = pd.to_numeric(df[col], errors='coerce').fillna(0)
                 temp_df = pd.DataFrame({'Region': df['Region_Fixed'], 'Value': numeric_values})
+                
+                # 지역별 합산 (총계 행 제거 후 개별 도서관 데이터만 정확하게 합산)
                 region_sums = temp_df.groupby('Region')['Value'].sum()
 
                 for region_name, val in region_sums.items():
@@ -105,14 +123,17 @@ def load_and_process_data():
     if not all_data: return pd.DataFrame()
         
     final_df = pd.concat(all_data, ignore_index=True)
+    # 총계 행이 제거된 정확한 Count 값을 기반으로 단위 변환
     final_df['Count_Unit'] = final_df['Count'] / UNIT_DIVISOR 
     
-    # 인구당 대출 권수 계산
+    # 인구당 대출 권수 계산 (이전과 동일)
     def calculate_per_capita(row):
         year = row['Year']
         region = row['Region']
         count = row['Count']
+        # 인구수: (단위: 만 명) * 10000
         population = REGION_POPULATION.get(region, {}).get(year, 1) * 10000 
+        # 인구 10만 명당 대출 권수
         return count / population * 100000 if population > 0 else 0
         
     final_df['Count_Per_Capita'] = final_df.apply(calculate_per_capita, axis=1)
@@ -129,22 +150,30 @@ with st.spinner(f'⏳ 5개년 엑셀 파일 정밀 분석 및 데이터 통합 �
 # 4. 시각화 시작
 # -----------------------------------------------------------------------------
 if df.empty:
-    st.error("😭 데이터를 추출하지 못했습니다. 파일 경로를 확인해 주세요.")
+    st.error("😭 데이터를 추출하지 못했습니다. 파일 경로를 확인해 주세요. (데이터 정제 오류 가능성 높음)")
     st.stop() 
 
 base_df = df.copy()
 
 st.header("📊 대출 현황 분석")
+
+# -------------------------------------------------------------
+# 4-1. 전체 총계 메트릭 추가 (정확히 계산된 총계값 사용)
+# -------------------------------------------------------------
+overall_total_count = base_df['Count'].sum()
+overall_total_unit = overall_total_count / UNIT_DIVISOR
+st.subheader(f"✅ 전체 5개년 (2020년~2024년) 총 대출 권수: {overall_total_unit:,.2f} {UNIT_LABEL}")
+st.markdown("---")
+
 st.subheader("1. 연도별 대출 추세 분석")
     
 st.markdown("---") 
 
 # -------------------------------------------------------------
-# 5-1. 지역별 연간 대출 추세
+# 5-1. 지역별 연간 대출 추세 (Line Chart)
 # -------------------------------------------------------------
 st.markdown("### 지역별 연간 대출 추세")
 
-# 5-1 로컬 필터링 컨트롤러: 지역
 all_regions = sorted(base_df['Region'].unique())
 selected_region_5_1 = st.multiselect(
     "📍 **비교 대상 지역**을 선택하세요",
@@ -158,7 +187,11 @@ map_filtered_df = base_df[base_df['Region'].isin(selected_region_5_1)]
 if map_filtered_df.empty:
     st.warning("선택한 지역의 데이터가 없어 라인 차트를 표시할 수 없습니다. 필터를 조정해 주세요.")
 else:
-    region_line_data = map_filtered_df.groupby(['Year', 'Region'])['Count_Unit'].sum().reset_index()
+    # Aggregation with Raw_Count (이제 Raw_Count는 정확한 값이 반영됨)
+    region_line_data = map_filtered_df.groupby(['Year', 'Region']).agg(
+        Count_Unit=('Count_Unit', 'sum'),
+        Raw_Count=('Count', 'sum')
+    ).reset_index()
 
     fig_region_line = px.line(
         region_line_data,
@@ -167,9 +200,18 @@ else:
         color='Region',
         markers=True,
         title=f"**선택 지역별 연간 대출 권수 변화**",
-        labels={'Count_Unit': f'대출 권수 ({UNIT_LABEL})', 'Year': '연도', 'Region': '지역'}, # Region 레이블 추가
+        labels={'Count_Unit': f'대출 권수 ({UNIT_LABEL})', 'Year': '연도', 'Region': '지역'},
         color_discrete_sequence=px.colors.qualitative.Bold,
-        hover_data={'Region': True, 'Count_Unit': True, 'Year': True} # 호버 데이터 명시
+        custom_data=['Raw_Count'] # Add raw count for hover
+    )
+    # Custom Hover Template (정확한 값 표시)
+    fig_region_line.update_traces(
+        hovertemplate=(
+            '<b>지역</b>: %{color}<br>' +
+            '<b>연도</b>: %{x}<br>' +
+            f'<b>총 대출 권수</b>: %{{customdata[0]:,.0f}} 권<br>' +
+            f'<b>대출 권수 ({UNIT_LABEL})</b>: %{{y:.2f}} {UNIT_LABEL}<extra></extra>'
+        )
     )
     fig_region_line.update_xaxes(type='category')
     fig_region_line.update_yaxes(tickformat=',.0f') 
@@ -178,11 +220,10 @@ else:
 st.markdown("---") 
     
 # -------------------------------------------------------------
-# 5-2. 자료유형별 연간 추세
+# 5-2. 자료유형별 연간 추세 (Stacked Bar Chart)
 # -------------------------------------------------------------
 st.markdown("### 자료유형별 연간 대출 추세")
 
-# 5-2 로컬 필터링 컨트롤러: 자료 유형
 all_materials = sorted(base_df['Material'].unique())
 selected_material_5_2 = st.multiselect(
     "📚 **자료 유형**을 선택하세요 (선택된 유형만 표시)",
@@ -191,13 +232,16 @@ selected_material_5_2 = st.multiselect(
     key='filter_material_5_2'
 )
 
-# 5-2 필터링 적용
 filtered_df_5_2 = base_df[base_df['Material'].isin(selected_material_5_2)]
 
 if filtered_df_5_2.empty:
     st.warning("선택한 자료 유형의 데이터가 없습니다. 필터를 조정해 주세요.")
 else:
-    material_data = filtered_df_5_2.groupby(['Year', 'Material'])['Count_Unit'].sum().reset_index()
+    # Aggregation with Raw_Count
+    material_data = filtered_df_5_2.groupby(['Year', 'Material']).agg(
+        Count_Unit=('Count_Unit', 'sum'),
+        Raw_Count=('Count', 'sum')
+    ).reset_index()
     
     fig_mat = px.bar(
         material_data,
@@ -206,9 +250,18 @@ else:
         color='Material',
         barmode='stack',
         title=f"**자료유형별 연간 대출 총량 및 비율 변화**",
-        labels={'Count_Unit': f'대출 권수 ({UNIT_LABEL})', 'Year': '연도', 'Material': '자료 유형'}, # Material 레이블 추가
+        labels={'Count_Unit': f'대출 권수 ({UNIT_LABEL})', 'Year': '연도', 'Material': '자료 유형'},
         color_discrete_sequence=px.colors.qualitative.T10,
-        hover_data={'Material': True, 'Count_Unit': True, 'Year': True} # 호버 데이터 명시
+        custom_data=['Raw_Count']
+    )
+    # Custom Hover Template (정확한 값 표시)
+    fig_mat.update_traces(
+        hovertemplate=(
+            '<b>연도</b>: %{x}<br>' +
+            '<b>자료 유형</b>: %{color}<br>' +
+            f'<b>총 대출 권수</b>: %{{customdata[0]:,.0f}} 권<br>' +
+            f'<b>대출 권수 ({UNIT_LABEL})</b>: %{{y:.2f}} {UNIT_LABEL}<extra></extra>'
+        )
     )
 
     fig_mat.update_xaxes(type='category')
@@ -219,11 +272,10 @@ st.markdown("---")
 
 
 # -------------------------------------------------------------
-# 5-3. 연령별 연간 추세
+# 5-3. 연령별 연간 추세 (Grouped Bar Chart)
 # -------------------------------------------------------------
 st.markdown("### 연령별 연간 대출 추세")
 
-# 5-3 로컬 필터링 컨트롤러: 연령대
 all_ages = sorted(base_df['Age'].unique())
 selected_ages_5_3 = st.multiselect(
     "👶 **연령대**를 선택하세요 (선택된 연령만 표시)",
@@ -232,13 +284,16 @@ selected_ages_5_3 = st.multiselect(
     key='filter_ages_5_3'
 )
 
-# 5-3 필터링 적용
 filtered_df_5_3 = base_df[base_df['Age'].isin(selected_ages_5_3)]
 
 if filtered_df_5_3.empty:
     st.warning("선택한 연령대의 데이터가 없습니다. 필터를 조정해 주세요.")
 else:
-    age_bar_data = filtered_df_5_3.groupby(['Year', 'Age'])['Count_Unit'].sum().reset_index()
+    # Aggregation with Raw_Count
+    age_bar_data = filtered_df_5_3.groupby(['Year', 'Age']).agg(
+        Count_Unit=('Count_Unit', 'sum'),
+        Raw_Count=('Count', 'sum')
+    ).reset_index()
 
     fig_age_bar = px.bar(
         age_bar_data,
@@ -247,11 +302,21 @@ else:
         color='Age',
         barmode='group', 
         title=f"**연령별 연간 대출 권수 비교**",
-        labels={'Count_Unit': f'대출 권수 ({UNIT_LABEL})', 'Year': '연도', 'Age': '연령대'}, # Age 레이블 추가
+        labels={'Count_Unit': f'대출 권수 ({UNIT_LABEL})', 'Year': '연도', 'Age': '연령대'},
         category_orders={"Age": ['어린이', '청소년', '성인']},
         color_discrete_sequence=px.colors.qualitative.Vivid,
-        hover_data={'Age': True, 'Count_Unit': True, 'Year': True} # 호버 데이터 명시
+        custom_data=['Raw_Count']
     )
+    # Custom Hover Template (정확한 값 표시)
+    fig_age_bar.update_traces(
+        hovertemplate=(
+            '<b>연도</b>: %{x}<br>' +
+            '<b>연령대</b>: %{color}<br>' +
+            f'<b>총 대출 권수</b>: %{{customdata[0]:,.0f}} 권<br>' +
+            f'<b>대출 권수 ({UNIT_LABEL})</b>: %{{y:.2f}} {UNIT_LABEL}<extra></extra>'
+        )
+    )
+
     fig_age_bar.update_xaxes(type='category')
     fig_age_bar.update_yaxes(tickformat=',.0f') 
     st.plotly_chart(fig_age_bar, use_container_width=True)
@@ -259,11 +324,10 @@ st.markdown("---")
 
 
 # -------------------------------------------------------------
-# 5-4. 주제별 연간 추세
+# 5-4. 주제별 연간 추세 (Line Chart)
 # -------------------------------------------------------------
 st.markdown("### 주제별 연간 대출 추세")
 
-# 5-4 로컬 필터링 컨트롤러: 주제 분야 및 순서 정의
 all_subjects = base_df['Subject'].unique()
 subject_order = ['총류', '철학', '종교', '사회과학', '순수과학', '기술과학', '예술', '언어', '문학', '역사']
 sorted_subjects = [s for s in subject_order if s in all_subjects]
@@ -274,13 +338,16 @@ selected_subjects_5_4 = st.multiselect(
     key='filter_subject_5_4'
 )
 
-# 5-4 필터링 적용
 filtered_df_5_4 = base_df[base_df['Subject'].isin(selected_subjects_5_4)]
 
 if filtered_df_5_4.empty:
     st.warning("선택한 주제 분야의 데이터가 없습니다. 필터를 조정해 주세요.")
 else:
-    subject_line_data = filtered_df_5_4.groupby(['Year', 'Subject'])['Count_Unit'].sum().reset_index()
+    # Aggregation with Raw_Count
+    subject_line_data = filtered_df_5_4.groupby(['Year', 'Subject']).agg(
+        Count_Unit=('Count_Unit', 'sum'),
+        Raw_Count=('Count', 'sum')
+    ).reset_index()
     
     fig_subject_line = px.line(
         subject_line_data,
@@ -289,10 +356,20 @@ else:
         color='Subject',
         markers=True,
         title=f"**주제별 연간 대출 권수 변화**",
-        labels={'Count_Unit': f'대출 권수 ({UNIT_LABEL})', 'Year': '연도', 'Subject': '주제 분야'}, # Subject 레이블 추가
+        labels={'Count_Unit': f'대출 권수 ({UNIT_LABEL})', 'Year': '연도', 'Subject': '주제 분야'},
         color_discrete_sequence=px.colors.qualitative.Dark24,
-        hover_data={'Subject': True, 'Count_Unit': True, 'Year': True} # 호버 데이터 명시
+        custom_data=['Raw_Count']
     )
+    # Custom Hover Template (정확한 값 표시)
+    fig_subject_line.update_traces(
+        hovertemplate=(
+            '<b>주제 분야</b>: %{color}<br>' +
+            '<b>연도</b>: %{x}<br>' +
+            f'<b>총 대출 권수</b>: %{{customdata[0]:,.0f}} 권<br>' +
+            f'<b>대출 권수 ({UNIT_LABEL})</b>: %{{y:.2f}} {UNIT_LABEL}<extra></extra>'
+        )
+    )
+
     fig_subject_line.update_xaxes(type='category')
     fig_subject_line.update_yaxes(tickformat=',.0f') 
     st.plotly_chart(fig_subject_line, use_container_width=True)
@@ -327,13 +404,15 @@ if not detail_data.empty:
     # --- New 6-A. 연령대별 자료 유형 선호도 (Pie Chart) ---
     st.markdown(f"### 📊 {target_year}년 연령대별 자료 유형 선호도")
     
-    material_preference_data = detail_data.groupby(['Age', 'Material'])['Count_Unit'].sum().reset_index()
+    # Aggregation with Raw_Count
+    material_preference_data = detail_data.groupby(['Age', 'Material']).agg(
+        Count_Unit=('Count_Unit', 'sum'),
+        Raw_Count=('Count', 'sum')
+    ).reset_index()
     
-    # 연령대별로 데이터를 분리하여 파이 차트 생성
     ages_to_plot = ['어린이', '청소년', '성인']
     cols = st.columns(len(ages_to_plot))
     
-    # 자료 유형에 사용할 새로운 색상 팔레트
     material_colors = ['#1f77b4', '#ff7f0e'] # Deep Blue (인쇄), Orange (전자)
 
     for i, age in enumerate(ages_to_plot):
@@ -349,9 +428,20 @@ if not detail_data.empty:
                     hole=.4,
                     color='Material',
                     color_discrete_map={'인쇄자료': material_colors[0], '전자자료': material_colors[1]},
-                    labels={'Count_Unit': f'대출 권수 ({UNIT_LABEL})', 'Material': '자료 유형'} # Pie Chart 레이블 추가
+                    labels={'Count_Unit': f'대출 권수 ({UNIT_LABEL})', 'Material': '자료 유형'},
+                    custom_data=['Raw_Count']
                 )
-                fig_pie_mat_pref.update_traces(textinfo='percent+label')
+                # Custom Hover Template (정확한 값 표시)
+                fig_pie_mat_pref.update_traces(
+                    textinfo='percent+label',
+                    hovertemplate=(
+                        '<b>자료 유형</b>: %{label}<br>' +
+                        f'<b>총 대출 권수</b>: %{{customdata[0]:,.0f}} 권<br>' +
+                        f'<b>대출 권수 ({UNIT_LABEL})</b>: %{{value:.2f}} {UNIT_LABEL}<br>' +
+                        '<b>비율</b>: %{percent}<extra></extra>'
+                    )
+                )
+
                 fig_pie_mat_pref.update_layout(
                     margin=dict(t=50, b=0, l=0, r=0),
                     height=350,
@@ -366,7 +456,11 @@ if not detail_data.empty:
     # --- New 6-B. 연령대별 주제 분야 선호도 (Grouped Bar Chart) ---
     st.markdown(f"### 📖 {target_year}년 연령대별 주제 분야 선호도") 
 
-    subject_preference_data = detail_data.groupby(['Age', 'Subject'])['Count_Unit'].sum().reset_index()
+    # Aggregation with Raw_Count
+    subject_preference_data = detail_data.groupby(['Age', 'Subject']).agg(
+        Count_Unit=('Count_Unit', 'sum'),
+        Raw_Count=('Count', 'sum')
+    ).reset_index()
     
     fig_subj_pref = px.bar(
         subject_preference_data,
@@ -378,8 +472,18 @@ if not detail_data.empty:
         labels={'Count_Unit': f'총 대출 권수 ({UNIT_LABEL})', 'Subject': '주제 분야', 'Age': '연령대'},
         category_orders={"Age": ['어린이', '청소년', '성인'], "Subject": subject_order},
         color_discrete_sequence=px.colors.qualitative.Pastel,
-        hover_data={'Subject': True, 'Age': True, 'Count_Unit': True} # 호버 데이터 명시
+        custom_data=['Raw_Count']
     )
+    # Custom Hover Template (정확한 값 표시)
+    fig_subj_pref.update_traces(
+        hovertemplate=(
+            '<b>주제 분야</b>: %{x}<br>' +
+            '<b>연령대</b>: %{color}<br>' +
+            f'<b>총 대출 권수</b>: %{{customdata[0]:,.0f}} 권<br>' +
+            f'<b>대출 권수 ({UNIT_LABEL})</b>: %{{y:.2f}} {UNIT_LABEL}<extra></extra>'
+        )
+    )
+
     fig_subj_pref.update_xaxes(tickangle=45)
     fig_subj_pref.update_yaxes(tickformat=',.0f') 
     st.plotly_chart(fig_subj_pref, use_container_width=True)
@@ -390,8 +494,11 @@ if not detail_data.empty:
     # -------------------------------------------------------------------------
     st.markdown(f"### 🎯 {target_year}년 연령별/자료유형별 상세 분포") 
     
-    # 그룹화: Age와 Material 기준으로만 그룹화합니다.
-    scatter_data = detail_data.groupby(['Age', 'Material'])['Count_Unit'].sum().reset_index()
+    # Aggregation with Raw_Count
+    scatter_data = detail_data.groupby(['Age', 'Material']).agg(
+        Count_Unit=('Count_Unit', 'sum'),
+        Raw_Count=('Count', 'sum')
+    ).reset_index()
     
     # 다차원 산점도 (Scatter Plot) 생성
     fig_multi_scatter = px.scatter(
@@ -401,7 +508,6 @@ if not detail_data.empty:
         color='Material', 
         size='Count_Unit', 
         size_max=70,       
-        # hover_data=['Count_Unit'] # 기존 hover_data를 제거하고 아래 labels와 hover_data로 대체
         title=f"대출 상세 분포 (연령대 x 대출량 x 자료유형) ({target_year}년)",
         labels={
             'Count_Unit': f'총 대출 권수 ({UNIT_LABEL})',
@@ -412,13 +518,23 @@ if not detail_data.empty:
             "Age": ['어린이', '청소년', '성인'], 
         },
         color_discrete_sequence=px.colors.qualitative.Dark24,
-        hover_data={'Age': True, 'Material': True, 'Count_Unit': True} # 호버 데이터 명시
+        custom_data=['Raw_Count']
+    )
+    # Custom Hover Template (정확한 값 표시)
+    fig_multi_scatter.update_traces(
+        marker=dict(line=dict(width=1, color='DarkSlateGrey')), opacity=0.8,
+        hovertemplate=(
+            '<b>연령대</b>: %{x}<br>' +
+            '<b>자료유형</b>: %{color}<br>' +
+            f'<b>총 대출 권수</b>: %{{customdata[0]:,.0f}} 권<br>' +
+            f'<b>대출 권수 ({UNIT_LABEL})</b>: %{{y:.2f}} {UNIT_LABEL}<extra></extra>'
+        )
     )
 
     fig_multi_scatter.update_xaxes(type='category', categoryorder='array', categoryarray=['어린이', '청소년', '성인'])
     fig_multi_scatter.update_yaxes(tickformat=',.0f')
     fig_multi_scatter.update_layout(height=600, legend_title_text='자료유형 (색상)')
-    fig_multi_scatter.update_traces(marker=dict(line=dict(width=1, color='DarkSlateGrey')), opacity=0.8)
+
 
     st.plotly_chart(fig_multi_scatter, use_container_width=True)
     st.markdown("---") 
@@ -436,22 +552,22 @@ if not detail_data.empty:
         )
 
         if pie_type == '자료 유형 (인쇄/전자)':
-            pie_data = detail_data.groupby('Material')['Count_Unit'].sum().reset_index()
+            pie_data = detail_data.groupby('Material').agg(Count_Unit=('Count_Unit', 'sum'), Raw_Count=('Count', 'sum')).reset_index()
             names_col = 'Material'
             title = f"자료 유형 (인쇄 vs 전자) 비율 ({target_year}년)"
             colors = px.colors.sequential.RdBu
         elif pie_type == '연령대':
-            pie_data = detail_data.groupby('Age')['Count_Unit'].sum().reset_index()
+            pie_data = detail_data.groupby('Age').agg(Count_Unit=('Count_Unit', 'sum'), Raw_Count=('Count', 'sum')).reset_index()
             names_col = 'Age'
             title = f"연령대별 대출 권수 비율 ({target_year}년)"
             colors = px.colors.qualitative.Vivid
         elif pie_type == '지역': 
-            pie_data = detail_data.groupby('Region')['Count_Unit'].sum().reset_index()
+            pie_data = detail_data.groupby('Region').agg(Count_Unit=('Count_Unit', 'sum'), Raw_Count=('Count', 'sum')).reset_index()
             names_col = 'Region'
             title = f"지역별 대출 권수 비율 ({target_year}년)"
             colors = px.colors.qualitative.Bold
         elif pie_type == '주제 분야': 
-            pie_data = detail_data.groupby('Subject')['Count_Unit'].sum().reset_index()
+            pie_data = detail_data.groupby('Subject').agg(Count_Unit=('Count_Unit', 'sum'), Raw_Count=('Count', 'sum')).reset_index()
             names_col = 'Subject'
             title = f"주제 분야별 대출 권수 비율 ({target_year}년)"
             colors = px.colors.qualitative.Pastel
@@ -462,14 +578,19 @@ if not detail_data.empty:
             names=names_col,
             title=title,
             hole=.3, 
-            labels={'Count_Unit': f'대출 권수 ({UNIT_LABEL})', names_col: '분석 기준'}, # Pie Chart 레이블 추가
+            labels={'Count_Unit': f'대출 권수 ({UNIT_LABEL})', names_col: '분석 기준'},
             height=500,
-            color_discrete_sequence=colors
+            color_discrete_sequence=colors,
+            custom_data=['Raw_Count']
         )
-        fig_pie.update_traces(textinfo='percent+label')
+        # Custom Hover Template (정확한 값 표시)
+        fig_pie.update_traces(
+            textinfo='percent+label',
+            hovertemplate=(
+                f'<b>{names_col}</b>: %{{label}}<br>' +
+                f'<b>총 대출 권수</b>: %{{customdata[0]:,.0f}} 권<br>' +
+                f'<b>대출 권수 ({UNIT_LABEL})</b>: %{{value:.2f}} {UNIT_LABEL}<br>' +
+                '<b>비율</b>: %{percent}<extra></extra>'
+            )
+        )
         st.plotly_chart(fig_pie, use_container_width=True)
-        
-        
-# 6-1. 데이터 테이블
-with st.expander("원본 추출 데이터 테이블 확인"):
-    st.dataframe(base_df.sort_values(by=['Year', 'Region', 'Subject']), use_container_width=True)
