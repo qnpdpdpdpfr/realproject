@@ -56,18 +56,37 @@ def load_and_process_data():
     all_data = []
     target_subjects = ['총류', '철학', '종교', '사회과학', '순수과학', '기술과학', '예술', '언어', '문학', '역사']
     target_ages = ['어린이', '청소년', '성인']
+    regions_list = list(REGION_POPULATION.keys()) # 모든 지역 리스트
 
     for item in files:
         file_path = os.path.join(data_dir, item['file'])
         
         # 파일이 없거나 로드 오류가 발생했다고 가정하고, 임시 데이터 생성 (실제 환경에서는 파일 로드 필요)
         # 실제 데이터가 없으므로 임시 DataFrame 생성
+        
+        # --- 길이 불일치 오류 수정 부분 시작 ---
+        num_regions = len(regions_list)
+        num_subjects = len(target_subjects)
+        total_rows = num_regions * num_subjects
+        
+        # 모든 컬럼이 total_rows와 같은 길이를 갖도록 구성
+        regions_repeated = [r for r in regions_list for _ in target_subjects] # 길이: total_rows
+        subjects_cycled = target_subjects * num_regions # 길이: total_rows
+        values_list = [1000000 + i * 50000 for i in range(total_rows)] # 길이: total_rows
+        
+        # Age_Group을 total_rows 길이에 맞게 순환해서 생성
+        age_groups_cycled = []
+        age_group_cycle_len = len(target_ages)
+        for i in range(total_rows):
+            age_groups_cycled.append(target_ages[i % age_group_cycle_len]) # 길이: total_rows
+        # --- 길이 불일치 오류 수정 부분 끝 ---
+        
         df_temp = pd.DataFrame({
-            'Region': [r for r in REGION_POPULATION['서울'].keys() for _ in target_subjects],
-            'Value': [1000000 + i * 50000 for i in range(len(REGION_POPULATION['서울'].keys()) * len(target_subjects))],
-            'Subject': target_subjects * len(REGION_POPULATION['서울'].keys()),
-            'Age_Group': [a for a in target_ages for _ in range(len(REGION_POPULATION['서울'].keys()) * len(target_subjects) // len(target_ages))],
-            'Material_Type': ['인쇄자료'] * len(REGION_POPULATION['서울'].keys()) * len(target_subjects)
+            'Region': regions_repeated,
+            'Value': values_list,
+            'Subject': subjects_cycled,
+            'Age_Group': age_groups_cycled, # 수정된 Age_Group 리스트 사용
+            'Material_Type': ['인쇄자료'] * total_rows
         })
         
         df_temp['Year'] = item['year']
