@@ -320,28 +320,46 @@ detail_data = base_df[base_df['Year'] == target_year]
 
 if not detail_data.empty:
     
-    # --- New 6-A. 연령대별 자료 유형 선호도 (Stacked Bar Chart) ---
+    # --- New 6-A. 연령대별 자료 유형 선호도 (Pie Chart) ---
     st.markdown(f"### 📊 {target_year}년 연령대별 자료 유형 선호도")
     
     material_preference_data = detail_data.groupby(['Age', 'Material'])['Count_Unit'].sum().reset_index()
     
-    fig_mat_pref = px.bar(
-        material_preference_data, 
-        x='Age', 
-        y='Count_Unit', 
-        color='Material',
-        barmode='stack',
-        title=f"연령대별 인쇄 자료 vs 전자 자료 대출량 비교 ({target_year}년)",
-        labels={'Count_Unit': f'총 대출 권수 ({UNIT_LABEL})', 'Age': '연령대', 'Material': '자료 유형'},
-        category_orders={"Age": ['어린이', '청소년', '성인']},
-        color_discrete_sequence=px.colors.sequential.RdBu
-    )
-    fig_mat_pref.update_yaxes(tickformat=',.0f')
-    st.plotly_chart(fig_mat_pref, use_container_width=True)
+    # 연령대별로 데이터를 분리하여 파이 차트 생성
+    ages_to_plot = ['어린이', '청소년', '성인']
+    cols = st.columns(len(ages_to_plot))
+    
+    # 자료 유형에 사용할 새로운 색상 팔레트
+    material_colors = ['#1f77b4', '#ff7f0e'] # Deep Blue (인쇄), Orange (전자)
+
+    for i, age in enumerate(ages_to_plot):
+        age_data = material_preference_data[material_preference_data['Age'] == age]
+        
+        if not age_data.empty:
+            with cols[i]:
+                fig_pie_mat_pref = px.pie(
+                    age_data, 
+                    values='Count_Unit', 
+                    names='Material',
+                    title=f"**{age}**",
+                    hole=.4,
+                    color='Material',
+                    color_discrete_map={'인쇄자료': material_colors[0], '전자자료': material_colors[1]}
+                )
+                fig_pie_mat_pref.update_traces(textinfo='percent+label')
+                fig_pie_mat_pref.update_layout(
+                    margin=dict(t=50, b=0, l=0, r=0),
+                    height=350,
+                    showlegend=True,
+                    legend_title_text='자료 유형',
+                    title_font_size=18
+                )
+                st.plotly_chart(fig_pie_mat_pref, use_container_width=True)
+                
     st.markdown("---") 
     
     # --- New 6-B. 연령대별 주제 분야 선호도 (Grouped Bar Chart) ---
-    st.markdown(f"### 📖 {target_year}년 연령대별 주제 분야 선호도")
+    st.markdown(f"### 📖 {target_year}년 연령대별 주제 분야 선호도") # 제목 변경됨: '연령별 대출 권수 비교' 제거
 
     subject_preference_data = detail_data.groupby(['Age', 'Subject'])['Count_Unit'].sum().reset_index()
     
@@ -351,7 +369,7 @@ if not detail_data.empty:
         y='Count_Unit',
         color='Age',
         barmode='group', 
-        title=f"주제 분야별 연령대별 대출 권수 비교 ({target_year}년)",
+        title=f"주제 분야별 연령대별 대출 비율 ({target_year}년)",
         labels={'Count_Unit': f'총 대출 권수 ({UNIT_LABEL})', 'Subject': '주제 분야', 'Age': '연령대'},
         category_orders={"Age": ['어린이', '청소년', '성인'], "Subject": subject_order},
         color_discrete_sequence=px.colors.qualitative.Pastel
@@ -362,9 +380,9 @@ if not detail_data.empty:
     st.markdown("---") 
 
     # -------------------------------------------------------------------------
-    # 6-C. 연령별/자료유형별 상세 분포 (기존 Scatter Plot)
+    # 6-C. 연령별/자료유형별 상세 분포 (Scatter Plot)
     # -------------------------------------------------------------------------
-    st.markdown(f"### 🎯 {target_year}년 연령별/자료유형별 상세 분포") # (산점도) 제거됨
+    st.markdown(f"### 🎯 {target_year}년 연령별/자료유형별 상세 분포") 
     
     # 그룹화: Age와 Material 기준으로만 그룹화합니다.
     scatter_data = detail_data.groupby(['Age', 'Material'])['Count_Unit'].sum().reset_index()
@@ -398,9 +416,9 @@ if not detail_data.empty:
     st.plotly_chart(fig_multi_scatter, use_container_width=True)
     st.markdown("---") 
 
-    # --- 6-D. 대출 비율 분석 (기존 Pie Chart) ---
+    # --- 6-D. 대출 비율 분석 (Pie Chart) ---
     with st.container():
-        st.markdown(f"### {target_year}년 대출 비율 분석") # (Pie Chart) 제거됨
+        st.markdown(f"### {target_year}년 대출 비율 분석") 
         
         # 6-D 로컬 필터링 컨트롤러: 기준 선택
         pie_type = st.radio(
@@ -430,21 +448,3 @@ if not detail_data.empty:
             names_col = 'Subject'
             title = f"주제 분야별 대출 권수 비율 ({target_year}년)"
             colors = px.colors.qualitative.Pastel
-
-        fig_pie = px.pie(
-            pie_data,
-            values='Count_Unit',
-            names=names_col,
-            title=title,
-            hole=.3, 
-            labels={'Count_Unit': '대출 권수 비율'},
-            height=500,
-            color_discrete_sequence=colors
-        )
-        fig_pie.update_traces(textinfo='percent+label')
-        st.plotly_chart(fig_pie, use_container_width=True)
-        
-        
-# 6-1. 데이터 테이블
-with st.expander("원본 추출 데이터 테이블 확인"):
-    st.dataframe(base_df.sort_values(by=['Year', 'Region', 'Subject']), use_container_width=True)
