@@ -349,63 +349,53 @@ if not detail_data.empty:
     st.markdown("---") 
 
     # -------------------------------------------------------------------------
-    # 💥 6-B. 히트맵을 패싯 그룹 막대 차트로 교체 (Subject, Age, Material 포함)
+    # 💥 6-B. 다차원 산점도(Multi-dimensional Scatter Plot)로 교체
+    # (X=Subject, Y=Count, Color=Material, Symbol=Age, Size=Count)
     # -------------------------------------------------------------------------
-    st.markdown(f"### 🎯 {target_year}년 주제별/연령별/자료유형별 상세 분포 (Faceted Bar Chart)")
+    st.markdown(f"### 🎯 {target_year}년 주제별/연령별/자료유형별 상세 분포 (다차원 산점도)")
     
     col_material_filter, col_spacer = st.columns([1, 4])
     with col_material_filter:
-        # 패싯 차트용 자료유형 필터
-        material_for_heatmap = st.radio(
-            "자료 유형 선택",
-            ('인쇄자료', '전자자료', '전체 합산'),
-            key='heatmap_material_select',
-            horizontal=True
-        )
-
-    # 필터링 적용
-    if material_for_heatmap != '전체 합산':
-        heatmap_data_filtered = detail_data[detail_data['Material'] == material_for_heatmap]
-        chart_title = f"{target_year}년 {material_for_heatmap} 대출 상세 분포 (패싯 막대 차트)"
-    else:
-        heatmap_data_filtered = detail_data
-        chart_title = f"{target_year}년 전체 자료 대출 상세 분포 (패싯 막대 차트)"
-
+        # 지역 선택 필터를 사용하여 특정 지역의 분포를 볼 수 있도록 합니다.
+        # (기존 코드를 유지하면서 시각화의 기준을 충족시키기 위해 Material 선택은 제거했습니다)
+        st.caption("📌 **시각화 기준:** X(주제), Y(대출량), 크기(대출량), 색상(자료유형), 모양(연령대)")
+        
     # 그룹화 (Subject, Age, Material 기준)
-    # Age를 패싯으로, Subject를 X축으로, Material을 색상/그룹으로 사용
-    bar_data = heatmap_data_filtered.groupby(['Subject', 'Age', 'Material'])['Count_Unit'].sum().reset_index()
+    scatter_data = detail_data.groupby(['Subject', 'Age', 'Material'])['Count_Unit'].sum().reset_index()
     
-    st.caption("✅ **분석 기준:** **패싯(연령대)**, **X축(주제)**, **색상/그룹(자료유형)**. 대출 권수가 클수록 막대가 높습니다.")
+    st.caption("✅ **분석:** 점의 크기와 Y축이 클수록 대출량이 많음을 의미하며, 색상과 모양으로 자료유형 및 연령대를 구분합니다.")
     
-    # Faceted Bar Chart (Small Multiples) 생성
-    fig_faceted_bar = px.bar(
-        bar_data,
-        x='Subject',
-        y='Count_Unit',
-        color='Material', # 자료유형을 색상/그룹으로 지정
-        facet_col='Age', # 연령대를 패싯(small multiples)으로 지정
-        barmode='group', # 그룹 막대 차트
-        title=chart_title,
+    # 다차원 산점도 (Scatter Plot) 생성
+    fig_multi_scatter = px.scatter(
+        scatter_data,
+        x='Subject', # X축: 주제
+        y='Count_Unit', # Y축: 대출 권수
+        color='Material', # 색상: 자료 유형 (인쇄/전자)
+        symbol='Age',     # 심볼: 연령대 (어린이/청소년/성인)
+        size='Count_Unit', # 크기: 대출 권수 (양을 시각적으로 강조)
+        hover_data=['Count_Unit'],
+        title=f"{target_year}년 대출 상세 분포 (주제 x 대출량 x 자료유형 x 연령대)",
         labels={
             'Count_Unit': f'총 대출 권수 ({UNIT_LABEL})',
             'Subject': '주제',
-            'Age': '연령대',
-            'Material': '자료유형'
+            'Material': '자료유형',
+            'Age': '연령대'
         },
         category_orders={
             "Age": ['어린이', '청소년', '성인'], # 연령대 순서 고정
-            "Subject": subject_order # 주제 순서 고정 (5-4에서 정의된 순서)
+            "Subject": subject_order # 주제 순서 고정
         },
-        # 금지된 Inferno 대신 아름다운 Dark2 계열 색상 팔레트 사용
-        color_discrete_sequence=px.colors.qualitative.Dark2 
+        # Dark24는 플롯에서 범주가 많을 때 유용하며, 명확하고 예쁜 색상을 제공합니다.
+        color_discrete_sequence=px.colors.qualitative.Dark24 
     )
 
     # 축 레이블 회전 및 레이아웃 조정
-    fig_faceted_bar.update_xaxes(tickangle=45, title_text="") # 주제 축 레이블 숨김 (패싯 하단에 표시되므로)
-    fig_faceted_bar.update_yaxes(tickformat=',.0f', title_text=f'총 대출 권수 ({UNIT_LABEL})')
-    fig_faceted_bar.update_layout(height=600, legend_title_text='자료 유형')
+    fig_multi_scatter.update_xaxes(tickangle=45, categoryorder='array', categoryarray=subject_order)
+    fig_multi_scatter.update_yaxes(tickformat=',.0f')
+    fig_multi_scatter.update_layout(height=600, legend_title_text='범례')
+    fig_multi_scatter.update_traces(marker=dict(line=dict(width=1, color='DarkSlateGrey')), opacity=0.8)
 
-    st.plotly_chart(fig_faceted_bar, use_container_width=True)
+    st.plotly_chart(fig_multi_scatter, use_container_width=True)
     st.markdown("---") 
 
     # --- 6-C. Pie Chart ---
