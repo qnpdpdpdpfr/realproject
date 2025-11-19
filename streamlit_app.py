@@ -17,18 +17,7 @@ st.markdown("---")
 UNIT_DIVISOR = 100000 
 UNIT_LABEL = '10만 권'
 
-# 지도시각화를 위한 지역별 중심 좌표
-REGION_COORDS = {
-    '서울': (37.5665, 126.9780), '부산': (35.1796, 129.0756), '대구': (35.8722, 128.6025), 
-    '인천': (37.4563, 126.7052), '광주': (35.1595, 126.8526), '대전': (36.3504, 127.3845), 
-    '울산': (35.5384, 129.3114), '세종': (36.4800, 127.2890), '경기': (37.2750, 127.0090), 
-    '강원': (37.8853, 127.7298), '충북': (36.6356, 127.4913), '충남': (36.5184, 126.8837), 
-    '전북': (35.8200, 127.1080), '전남': (34.8168, 126.4628), '경북': (36.5760, 128.5050), 
-    '경남': (35.2383, 128.6925), '제주': (33.4996, 126.5312)
-}
-
-# 2020~2024년 지역별 인구수 (단위: 만 명, 통계청 자료 기반 추정치)
-# 인구당 대출 권수를 계산하여 의미 있는 비교를 위함.
+# 2020~2024년 지역별 인구수 (단위: 만 명, 통계청 자료 기반 추정치) - 이전과 동일
 REGION_POPULATION = {
     '서울': {2020: 980, 2021: 960, 2022: 950, 2023: 940, 2024: 935},
     '부산': {2020: 335, 2021: 330, 2022: 325, 2023: 320, 2024: 315},
@@ -50,7 +39,7 @@ REGION_POPULATION = {
 }
 
 # -----------------------------------------------------------------------------
-# 2. 데이터 로드 및 전처리 함수 
+# 2. 데이터 로드 및 전처리 함수 (이전과 동일)
 # -----------------------------------------------------------------------------
 @st.cache_data
 def load_and_process_data():
@@ -66,9 +55,9 @@ def load_and_process_data():
     target_subjects = ['총류', '철학', '종교', '사회과학', '순수과학', '기술과학', '예술', '언어', '문학', '역사']
     target_ages = ['어린이', '청소년', '성인']
 
+    # ... (데이터 로드 및 지역/연도/카운트 추출 로직은 이전과 동일하게 유지) ...
     for item in files:
         file_path = os.path.join(data_dir, item['file'])
-        
         if not os.path.exists(file_path): continue
 
         try:
@@ -81,24 +70,20 @@ def load_and_process_data():
 
             df['Region_Fixed'] = df.iloc[:, 3].astype(str).str.strip() 
             df = df[df['Region_Fixed'] != 'nan']
-
         except Exception: continue
         
         extracted_rows = []
-        
         for col in df.columns:
             col_str = str(col)
             mat_type = ""
             if '전자자료' in col_str: mat_type = "전자자료"
             elif '인쇄자료' in col_str: mat_type = "인쇄자료"
             else: continue 
-
+            
             subject = next((s for s in target_subjects if s in col_str), None)
             age = next((a for a in target_ages if a in col_str), None)
 
             if subject and age and mat_type:
-                if subject and '합계' in col_str and not age: continue 
-                
                 numeric_values = pd.to_numeric(df[col], errors='coerce').fillna(0)
                 temp_df = pd.DataFrame({'Region': df['Region_Fixed'], 'Value': numeric_values})
                 region_sums = temp_df.groupby('Region')['Value'].sum()
@@ -122,10 +107,6 @@ def load_and_process_data():
         
     final_df = pd.concat(all_data, ignore_index=True)
     final_df['Count_Unit'] = final_df['Count'] / UNIT_DIVISOR 
-    
-    # 지도시각화를 위한 위도/경도 정보 추가 
-    final_df['Lat'] = final_df['Region'].apply(lambda x: REGION_COORDS.get(x, (36.3, 127.8))[0])
-    final_df['Lon'] = final_df['Region'].apply(lambda x: REGION_COORDS.get(x, (36.3, 127.8))[1])
     
     # 🚨 인구당 대출 권수 계산 (지역 순위의 의미를 부여)
     def calculate_per_capita(row):
@@ -162,60 +143,48 @@ st.subheader("1. 연도별 대출 추세 분석")
 st.markdown("---") 
 
 # -------------------------------------------------------------
-# 5-1. 지역별 대출 추세 (Mapbox) - 지역 필터 추가 (전체 현황에 대한 지역 선택)
+# 5-1. 지역별 연간 대출 추세 (지도 -> 라인 차트로 변경) - 지역 필터 적용
 # -------------------------------------------------------------
-st.markdown("### 지역별 연간 대출 추세 (지도 시각화)")
-st.caption("✅ **필터 적용 기준:** **지역**")
+st.markdown("### 지역별 연간 대출 추세 (라인 차트)")
+st.caption("✅ **필터 적용 기준:** **지역** (지도 시각화의 가독성 문제로 대체되었습니다)")
 
 # 5-1 로컬 필터링 컨트롤러: 지역
 all_regions = sorted(base_df['Region'].unique())
 selected_region_5_1 = st.multiselect(
-    "📍 **분석 대상 지역**을 선택하세요 (지도에 표시할 지역만 선택)",
+    "📍 **비교 대상 지역**을 선택하세요",
     all_regions,
-    default=all_regions,
+    default=['서울', '부산', '경기', '세종'], # 주요 지역을 기본값으로 설정하여 비교의 의미를 높임
     key='filter_region_5_1'
 )
 
 map_filtered_df = base_df[base_df['Region'].isin(selected_region_5_1)]
 
 if map_filtered_df.empty:
-    st.warning("지도 시각화에 표시할 데이터가 없습니다. 필터를 조정해 주세요.")
+    st.warning("선택한 지역의 데이터가 없어 라인 차트를 표시할 수 없습니다. 필터를 조정해 주세요.")
 else:
-    map_data = map_filtered_df.groupby(['Year', 'Region', 'Lat', 'Lon'])['Count_Unit'].sum().reset_index()
+    region_line_data = map_filtered_df.groupby(['Year', 'Region'])['Count_Unit'].sum().reset_index()
 
-    fig_map = px.scatter_mapbox(
-        map_data, 
-        lat="Lat", 
-        lon="Lon", 
-        hover_name="Region", 
-        size="Count_Unit",                          
-        color="Count_Unit",                 
-        color_continuous_scale=px.colors.sequential.Blues, 
-        animation_frame="Year",             
-        zoom=6.5,                           
-        height=600,
-        size_max=50, 
-        title=f"**연도별 지역 대출 권수 분포** (크기 및 색상 진하기: {UNIT_LABEL})",
+    fig_region_line = px.line(
+        region_line_data,
+        x='Year',
+        y='Count_Unit',
+        color='Region',
+        markers=True,
+        title=f"**선택 지역별 연간 대출 권수 변화**",
+        labels={'Count_Unit': f'대출 권수 ({UNIT_LABEL})', 'Year': '연도'},
+        color_discrete_sequence=px.colors.qualitative.Bold
     )
-    
-    fig_map.update_layout(
-        mapbox_style="carto-positron",
-        mapbox_center={"lat": 36.3, "lon": 127.8},
-        margin={"r":0,"t":50,"l":0,"b":0},
-        coloraxis_colorbar=dict(
-            title=f"대출 권수<br>(단위: {UNIT_LABEL})",
-            tickformat=',.0f' 
-        )
-    )
-    st.plotly_chart(fig_map, use_container_width=True)
+    fig_region_line.update_xaxes(type='category')
+    fig_region_line.update_yaxes(tickformat=',.0f') 
+    st.plotly_chart(fig_region_line, use_container_width=True)
     
 st.markdown("---") 
     
 # -------------------------------------------------------------
-# 5-2. 자료유형별 연간 추세 (Bar Chart) - 자료 유형 필터 적용 (논리적 수정 완료)
+# 5-2. 자료유형별 연간 추세 (Stacked Bar Chart 고정) - 자료 유형 필터 적용
 # -------------------------------------------------------------
 st.markdown("### 자료유형별 연간 대출 추세")
-st.caption("✅ **필터 적용 기준:** **자료 유형**")
+st.caption("✅ **필터 적용 기준:** **자료 유형** (차트 유형 선택은 제거되었습니다)")
 
 # 5-2 로컬 필터링 컨트롤러: 자료 유형
 all_materials = sorted(base_df['Material'].unique())
@@ -232,38 +201,19 @@ filtered_df_5_2 = base_df[base_df['Material'].isin(selected_material_5_2)]
 if filtered_df_5_2.empty:
     st.warning("선택한 자료 유형의 데이터가 없습니다. 필터를 조정해 주세요.")
 else:
-    # 차트 유형 로컬 컨트롤러
-    chart_type = st.radio(
-        "차트 유형 선택",
-        ('Stacked Bar (총량+비율)', 'Grouped Bar (개별 비교)'),
-        key='material_chart_type_5_2', 
-        horizontal=True
-    )
-
+    # Stacked Bar Chart로 고정
     material_data = filtered_df_5_2.groupby(['Year', 'Material'])['Count_Unit'].sum().reset_index()
     
-    if chart_type == 'Stacked Bar (총량+비율)':
-        fig_mat = px.bar(
-            material_data,
-            x='Year',
-            y='Count_Unit',
-            color='Material',
-            barmode='stack',
-            title=f"**자료유형별 연간 대출 총량 및 비율 변화**",
-            labels={'Count_Unit': f'대출 권수 ({UNIT_LABEL})', 'Year': '연도'},
-            color_discrete_sequence=px.colors.qualitative.T10 
-        )
-    else: 
-        fig_mat = px.bar(
-            material_data,
-            x='Year',
-            y='Count_Unit',
-            color='Material',
-            barmode='group',
-            title=f"**자료유형별 연간 대출 권수 개별 비교**",
-            labels={'Count_Unit': f'대출 권수 ({UNIT_LABEL})', 'Year': '연도'},
-            color_discrete_sequence=px.colors.qualitative.T10 
-        )
+    fig_mat = px.bar(
+        material_data,
+        x='Year',
+        y='Count_Unit',
+        color='Material',
+        barmode='stack',
+        title=f"**자료유형별 연간 대출 총량 및 비율 변화**",
+        labels={'Count_Unit': f'대출 권수 ({UNIT_LABEL})', 'Year': '연도'},
+        color_discrete_sequence=px.colors.qualitative.T10 
+    )
 
     fig_mat.update_xaxes(type='category')
     fig_mat.update_yaxes(tickformat=',.0f') 
@@ -273,7 +223,7 @@ st.markdown("---")
 
 
 # -------------------------------------------------------------
-# 5-3. 연령별 연간 추세 (Grouped Bar Chart) - 연령대 필터 적용 (논리적 수정 완료)
+# 5-3. 연령별 연간 추세 (Grouped Bar Chart) - 연령대 필터 적용
 # -------------------------------------------------------------
 st.markdown("### 연령별 연간 대출 추세 (Grouped Bar Chart)")
 st.caption("✅ **필터 적용 기준:** **연령대**")
@@ -313,7 +263,7 @@ st.markdown("---")
 
 
 # -------------------------------------------------------------
-# 5-4. 주제별 연간 추세 (Line Chart) - 주제 분야 필터 적용 (논리적 수정 완료)
+# 5-4. 주제별 연간 추세 (Line Chart) - 주제 분야 필터 적용
 # -------------------------------------------------------------
 st.markdown("### 주제별 연간 대출 추세 (Line Chart)")
 st.caption("✅ **필터 적용 기준:** **주제 분야**")
@@ -358,17 +308,20 @@ st.markdown("---")
 # -------------------------------------------------------------
 st.subheader("2. 상세 분포 분석 (특정 연도)")
 
-# 6. 공통 연도 로컬 필터링 컨트롤러
-target_year = st.slider(
-    "분석 대상 연도 선택", 
-    2020, 2024, 2024, 
-    key='detail_year_select_6' 
-)
+# 6. 공통 연도 로컬 필터링 컨트롤러 (슬라이더 크기 개선)
+with st.container():
+    st.markdown("#### 📅 분석 기준 연도 선택")
+    target_year = st.slider(
+        "분석 대상 연도 선택", 
+        2020, 2024, 2024, 
+        key='detail_year_select_6',
+        label_visibility="collapsed" # 레이블을 숨겨 크기를 확보합니다.
+    )
 detail_data = base_df[base_df['Year'] == target_year]
 
 if not detail_data.empty:
     
-    # --- 6-A. 지역별 순위 --- (인구당 대출 권수 순위로 변경하여 의미 강화)
+    # --- 6-A. 지역별 순위 --- (인구 10만 명당 순위)
     st.markdown(f"### {target_year}년 지역별 대출 순위 (인구 10만 명당)")
     st.caption("✅ **의미 강화:** 절대 권수가 아닌 **인구 10만 명당 대출 권수**를 기준으로 순위를 매겨 지역별 비교의 의미를 높였습니다.")
     
@@ -408,7 +361,7 @@ if not detail_data.empty:
     st.plotly_chart(fig_grouped_bar, use_container_width=True)
     st.markdown("---") 
 
-    # --- 6-C. Pie Chart --- (연도 인터랙티브 요소 추가)
+    # --- 6-C. Pie Chart ---
     with st.container():
         st.markdown(f"### {target_year}년 자료 유형 비율 (Pie Chart)")
         st.caption("✅ **강화:** 상단의 연도 슬라이더에 따라 비율이 변경됩니다.")
