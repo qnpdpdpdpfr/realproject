@@ -3,6 +3,7 @@ import pandas as pd
 import plotly.express as px
 import os
 import re
+# [제거] import json 제거
 
 # -----------------------------------------------------------------------------
 # 1. 설정 및 제목
@@ -27,6 +28,8 @@ REGION_COORDS = {
     '경남': (35.2383, 128.6925), '제주': (33.4996, 126.5312)
 }
 
+# [제거] GEOJSON_PATH 및 REGION_MAP 제거
+
 # -----------------------------------------------------------------------------
 # 2. 데이터 로드 및 전처리 함수 
 # -----------------------------------------------------------------------------
@@ -50,7 +53,6 @@ def load_and_process_data():
         if not os.path.exists(file_path): continue
 
         try:
-            # 헤더/시작 행 처리 (오류 발생하지 않던 로직 유지)
             if item['year'] >= 2023:
                 df = pd.read_excel(file_path, engine='openpyxl', header=1) 
                 df = df.iloc[2:].reset_index(drop=True)
@@ -65,7 +67,6 @@ def load_and_process_data():
         
         extracted_rows = []
         
-        # 컬럼 매칭 로직 (오류가 없던 이전 버전)
         for col in df.columns:
             col_str = str(col)
             mat_type = ""
@@ -103,7 +104,7 @@ def load_and_process_data():
     final_df = pd.concat(all_data, ignore_index=True)
     final_df['Count_Unit'] = final_df['Count'] / UNIT_DIVISOR 
     
-    # 지도시각화를 위한 위도/경도 정보 추가
+    # [복구] 지도시각화를 위한 위도/경도 정보 다시 추가
     final_df['Lat'] = final_df['Region'].apply(lambda x: REGION_COORDS.get(x, (36.3, 127.8))[0])
     final_df['Lon'] = final_df['Region'].apply(lambda x: REGION_COORDS.get(x, (36.3, 127.8))[1])
     
@@ -115,8 +116,10 @@ def load_and_process_data():
 with st.spinner(f'⏳ 5개년 엑셀 파일 정밀 분석 및 데이터 통합 중 (단위: {UNIT_LABEL} 적용)...'):
     df = load_and_process_data()
 
+# [제거] GeoJSON 로드 오류 처리 코드 제거
+
 # -----------------------------------------------------------------------------
-# 4. 대시보드 UI (필터 중앙 배치)
+# 4. 대시보드 UI (필터 중앙 배치) 
 # -----------------------------------------------------------------------------
 if df.empty:
     st.error("😭 데이터를 추출하지 못했습니다. 필터링 조건을 조정하거나 파일 경로를 확인해 주세요.")
@@ -133,7 +136,7 @@ with col_region:
     selected_regions = st.multiselect(
         "📍 **분석 대상 지역**",
         all_regions,
-        default=all_regions[:5] if len(all_regions) > 0 else []
+        default=all_regions
     )
 
 with col_mat:
@@ -172,28 +175,28 @@ else:
     st.markdown("---") 
 
     # -------------------------------------------------------------
-    # 5-1. 지역별 대출 추세 (Mapbox - 인터랙티브 애니메이션)
+    # 5-1. 지역별 대출 추세 (Mapbox - Scatter Mapbox로 복귀)
     # -------------------------------------------------------------
-    st.markdown("### 지역별 연간 대출 추세 (지도 시각화)")
+    st.markdown("### 지역별 연간 대출 추세 (지도 시각화 - 점 표시)")
     
-    # Mapbox는 animation_frame으로 인터랙티브 요소를 제공하므로 별도 컨트롤러 불필요
-    st.info("💡 **지도 사용법:** 하단 슬라이더를 움직이거나 재생 버튼을 눌러 연도별 대출 권수의 변화를 확인하세요.")
+    st.info(f"💡 **지도 사용법:** 하단 슬라이더를 움직여 연도별 변화를 확인하세요. **점의 크기와 색상 진하기**가 대출 권수 (단위: {UNIT_LABEL})를 나타냅니다.")
 
+    # 지역별 연도별 집계 (Lat/Lon 포함)
     map_data = filtered_df.groupby(['Year', 'Region', 'Lat', 'Lon'])['Count_Unit'].sum().reset_index()
 
+    # [복구 및 수정] Scatter Mapbox 사용 (GeoJSON 코드 제거)
     fig_map = px.scatter_mapbox(
         map_data, 
         lat="Lat", 
         lon="Lon", 
         hover_name="Region", 
-        size=[30] * len(map_data),          
+        size="Count_Unit",                          # 점 크기를 대출 권수에 비례하게
         color="Count_Unit",                 
-        color_continuous_scale=px.colors.sequential.Plasma,
+        color_continuous_scale=px.colors.sequential.Blues, # 진하기가 명확한 Blues 계열 유지
         animation_frame="Year",             
         zoom=6.5,                           
         height=600,
-        title=f"**연도별 지역 대출 권수 분포** (색상 진하기: {UNIT_LABEL})",
-        
+        title=f"**연도별 지역 대출 권수 분포** (크기 및 색상 진하기: {UNIT_LABEL})",
     )
     
     fig_map.update_layout(
@@ -205,22 +208,23 @@ else:
             tickformat=',.0f' 
         )
     )
-    fig_map.update_traces(marker=dict(sizemin=5))
+    # 점의 최대 크기 설정
+    fig_map.update_traces(marker=dict(size_max=50)) 
 
     st.plotly_chart(fig_map, use_container_width=True)
+    
     st.markdown("---") 
     
     
     # -------------------------------------------------------------
-    # 5-2. 자료유형별 연간 추세 (Bar Chart)
+    # 5-2. 자료유형별 연간 추세 (Bar Chart) 
     # -------------------------------------------------------------
     st.markdown("### 자료유형별 연간 대출 추세")
     
-    # [수정] 차트 상단에 컨트롤러 배치
     chart_type = st.radio(
         "차트 유형 선택",
         ('Stacked Bar (총량+비율)', 'Grouped Bar (개별 비교)'),
-        key='material_chart_type_2', # key 변경
+        key='material_chart_type_2', 
         horizontal=True
     )
 
@@ -257,11 +261,10 @@ else:
     
     
     # -------------------------------------------------------------
-    # 5-3. 연령별 연간 추세 (Grouped Bar Chart)
+    # 5-3. 연령별 연간 추세 (Grouped Bar Chart) 
     # -------------------------------------------------------------
     st.markdown("### 연령별 연간 대출 추세 (Grouped Bar Chart)")
     
-    # 연령별 차트는 차트 유형 변경 없이 그대로 유지 (컨트롤러 불필요)
     age_bar_data = filtered_df.groupby(['Year', 'Age'])['Count_Unit'].sum().reset_index()
 
     fig_age_bar = px.bar(
@@ -282,11 +285,10 @@ else:
     
     
     # -------------------------------------------------------------
-    # 5-4. 주제별 연간 추세 (Line Chart)
+    # 5-4. 주제별 연간 추세 (Line Chart) 
     # -------------------------------------------------------------
     st.markdown("### 주제별 연간 대출 추세 (Line Chart)")
     
-    # 주제별 차트는 차트 유형 변경 없이 그대로 유지 (컨트롤러 불필요)
     subject_line_data = filtered_df.groupby(['Year', 'Subject'])['Count_Unit'].sum().reset_index()
     
     fig_subject_line = px.line(
@@ -310,11 +312,10 @@ else:
     # -------------------------------------------------------------
     st.subheader("2. 상세 분포 분석 (특정 연도)")
     
-    # [수정] 상세 분석용 연도 슬라이더를 섹션 상단으로 이동
     target_year = st.slider(
         "분석 대상 연도 선택", 
         2020, 2024, 2024, 
-        key='detail_year_select_2' # key 변경
+        key='detail_year_select_2' 
     )
     detail_data = filtered_df[filtered_df['Year'] == target_year]
 
@@ -323,7 +324,6 @@ else:
         # --- 2-A. 지역별 순위 ---
         st.markdown(f"### {target_year}년 지역별 대출 순위 (Bar Chart)")
         
-        # 지역별 차트는 차트 유형 변경 없이 그대로 유지 (컨트롤러 불필요)
         regional_data = detail_data.groupby('Region')['Count_Unit'].sum().reset_index()
         
         fig_bar_regional = px.bar(
@@ -339,11 +339,10 @@ else:
         st.plotly_chart(fig_bar_regional, use_container_width=True)
         st.markdown("---") 
 
-        # --- 2-B. 주제/연령대 대출 비교 (Grouped Bar Chart - 버블 차트 전환 준비) ---
+        # --- 2-B. 주제/연령대 대출 비교 (Grouped Bar Chart - 버블 차트 전환 대기) ---
         st.markdown(f"### {target_year}년 다기준 상세 분석 (버블 차트 전환 대기 중)")
         st.warning("⚠️ **버블 차트 설정 대기 중:** 원하시는 **X축, Y축, 색상, 크기** 기준을 말씀해주시면 4가지 기준을 반영하여 **버블 차트**로 전환하겠습니다.")
         
-        # 현재는 임시 Grouped Bar Chart 유지
         subject_age_data = detail_data.groupby(['Subject', 'Age'])['Count_Unit'].sum().reset_index()
         
         fig_grouped_bar = px.bar(
@@ -365,7 +364,6 @@ else:
         with st.container():
             st.markdown(f"### {target_year}년 자료 유형 비율 (Pie Chart)")
             
-            # [수정] Pie Chart 위에 컨트롤러 배치
             pie_type = st.radio(
                 "분석 기준 선택",
                 ('자료 유형 (인쇄/전자)', '연령대'),
