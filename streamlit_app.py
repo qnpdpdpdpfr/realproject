@@ -52,6 +52,7 @@ def load_and_process_data():
     ]
     data_dir = "data"
     all_data = []
+    # '총류', '철학', ... 등의 주제는 데이터 추출 시 여전히 필요합니다.
     target_subjects = ['총류', '철학', '종교', '사회과학', '순수과학', '기술과학', '예술', '언어', '문학', '역사']
     target_ages = ['어린이', '청소년', '성인']
 
@@ -95,7 +96,7 @@ def load_and_process_data():
                             'Year': item['year'],
                             'Region': region_name,
                             'Material': mat_type,
-                            'Subject': subject,
+                            'Subject': subject, # 데이터에는 Subject를 유지합니다.
                             'Age': age,
                             'Count': val 
                         })
@@ -349,21 +350,22 @@ if not detail_data.empty:
     st.markdown("---") 
 
     # -------------------------------------------------------------------------
-    # 💥 6-B. 다차원 산점도(Multi-dimensional Scatter Plot)로 교체
-    # (X=Age, Y=Count, Color=Material, Symbol=Subject, Size=Count)
+    # 💥 6-B. 다차원 산점도(Multi-dimensional Scatter Plot) - 주제 제거 반영
+    # (X=Age, Y=Count, Color=Material, Symbol=FIXED, Size=Count)
     # -------------------------------------------------------------------------
-    st.markdown(f"### 🎯 {target_year}년 연령별/주제별/자료유형별 상세 분포 (다차원 산점도)")
+    st.markdown(f"### 🎯 {target_year}년 연령별/자료유형별 상세 분포 (산점도)")
     
     col_material_filter, col_spacer = st.columns([1, 4])
     with col_material_filter:
-        # 지역 선택 필터를 사용하여 특정 지역의 분포를 볼 수 있도록 합니다.
-        st.caption("📌 **시각화 기준:** X(**연령대**), Y(대출량), 크기(대출량), 색상(**자료유형**), 모양(**주제 분야**)")
+        # 시각화 기준에서 '모양(주제 분야)'를 제거했습니다.
+        st.caption("📌 **시각화 기준:** X(**연령대**), Y(대출량), 크기(대출량), 색상(**자료유형**)")
         
-    # 그룹화 (Subject, Age, Material 기준)
-    scatter_data = detail_data.groupby(['Subject', 'Age', 'Material'])['Count_Unit'].sum().reset_index()
+    # 그룹화: 이제 Subject는 시각화 요소가 아니므로 Age와 Material 기준으로만 그룹화합니다.
+    scatter_data = detail_data.groupby(['Age', 'Material'])['Count_Unit'].sum().reset_index()
     
     # 명확한 범례 설명을 위한 캡션 추가
-    st.caption("✅ **범례 설명:** **색상**으로 자료유형(인쇄 vs 전자)을, **모양**으로 주제 분야(총류, 문학 등)를 구분하며, 점의 크기와 Y축이 클수록 대출량이 많음을 의미합니다.")
+    # 모양 범례를 제거하고 색상 범례만 남겼습니다.
+    st.caption("✅ **범례 설명:** **색상**으로 자료유형(인쇄 vs 전자)을 구분하며, 점의 크기와 Y축이 클수록 해당 연령대와 자료유형의 대출량이 많음을 의미합니다. (점의 모양은 고정된 원입니다.)")
     
     # 다차원 산점도 (Scatter Plot) 생성
     fig_multi_scatter = px.scatter(
@@ -371,29 +373,27 @@ if not detail_data.empty:
         x='Age',          # X축: 연령 (요청에 따라 변경)
         y='Count_Unit',   # Y축: 대출 권수
         color='Material', # 색상: 자료 유형 (인쇄/전자)
-        symbol='Subject', # 심볼: 주제 (요청에 따라 변경)
+        # symbol 인자 제거됨 (모양 고정)
         size='Count_Unit', # 크기: 대출 권수 (양을 시각적으로 강조)
         size_max=70,       # 점의 크기를 대폭 확대
         hover_data=['Count_Unit'],
-        title=f"{target_year}년 대출 상세 분포 (연령대 x 대출량 x 자료유형 x 주제 분야)",
+        title=f"{target_year}년 대출 상세 분포 (연령대 x 대출량 x 자료유형)",
         labels={
             'Count_Unit': f'총 대출 권수 ({UNIT_LABEL})',
-            'Subject': '주제',
             'Material': '자료유형',
             'Age': '연령대'
         },
         category_orders={
             "Age": ['어린이', '청소년', '성인'], # 연령대 순서 고정
-            "Subject": subject_order # 주제 순서 고정
         },
-        # Dark24는 플롯에서 범주가 많을 때 유용하며, 명확하고 예쁜 색상을 제공합니다.
         color_discrete_sequence=px.colors.qualitative.Dark24 
     )
 
     # 축 레이블 회전 및 레이아웃 조정
     fig_multi_scatter.update_xaxes(type='category', categoryorder='array', categoryarray=['어린이', '청소년', '성인'])
     fig_multi_scatter.update_yaxes(tickformat=',.0f')
-    fig_multi_scatter.update_layout(height=600, legend_title_text='범례')
+    fig_multi_scatter.update_layout(height=600, legend_title_text='자료유형 (색상)')
+    # 모든 점이 원으로 표시됩니다.
     fig_multi_scatter.update_traces(marker=dict(line=dict(width=1, color='DarkSlateGrey')), opacity=0.8)
 
     st.plotly_chart(fig_multi_scatter, use_container_width=True)
