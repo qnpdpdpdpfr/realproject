@@ -429,7 +429,7 @@ if not detail_data.empty:
             category_orders={"Subject": selected_subjects_6a},
             color_discrete_sequence=px.colors.qualitative.Alphabet # 다채로운 팔레트 사용
         )
-        fig_bar_preference.update_yaxes(tickformat=',.1f', suffix='%')
+        fig_bar_preference.update_yaxes(tickformat='.1%')
         fig_bar_preference.update_layout(height=500, xaxis_title='지역', yaxis_title='총 대출 대비 비율 (%)')
         st.plotly_chart(fig_bar_preference, use_container_width=True)
     st.markdown("---")
