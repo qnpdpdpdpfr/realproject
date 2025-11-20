@@ -41,6 +41,28 @@ REGION_POPULATION = {
     '제주': {2020: 67, 2021: 67, 2022: 67, 2023: 67, 2024: 67}
 }
 
+# 지역별 중심 좌표 (지도 시각화용)
+KOREA_COORDS = {
+    '서울': {'lat': 37.5665, 'lon': 126.9780, 'name_en': 'Seoul'},
+    '부산': {'lat': 35.1796, 'lon': 129.0756, 'name_en': 'Busan'},
+    '대구': {'lat': 35.8714, 'lon': 128.6014, 'name_en': 'Daegu'},
+    '인천': {'lat': 37.4563, 'lon': 126.7052, 'name_en': 'Incheon'},
+    '광주': {'lat': 35.1601, 'lon': 126.8514, 'name_en': 'Gwangju'},
+    '대전': {'lat': 36.3504, 'lon': 127.3845, 'name_en': 'Daejeon'},
+    '울산': {'lat': 35.5384, 'lon': 129.3114, 'name_en': 'Ulsan'},
+    '세종': {'lat': 36.4800, 'lon': 127.2890, 'name_en': 'Sejong'},
+    '경기': {'lat': 37.4138, 'lon': 127.5183, 'name_en': 'Gyeonggi'}, # Represents central Gyeonggi
+    '강원': {'lat': 37.8854, 'lon': 128.2748, 'name_en': 'Gangwon'},
+    '충북': {'lat': 36.8000, 'lon': 127.7000, 'name_en': 'Chungbuk'},
+    '충남': {'lat': 36.5184, 'lon': 126.8837, 'name_en': 'Chungnam'},
+    '전북': {'lat': 35.8200, 'lon': 127.1080, 'name_en': 'Jeonbuk'},
+    '전남': {'lat': 34.8679, 'lon': 126.9910, 'name_en': 'Jeonnam'},
+    '경북': {'lat': 36.5760, 'lon': 128.5050, 'name_en': 'Gyeongbuk'},
+    '경남': {'lat': 35.2381, 'lon': 128.6924, 'name_en': 'Gyeongnam'},
+    '제주': {'lat': 33.4890, 'lon': 126.4983, 'name_en': 'Jeju'}
+}
+
+
 # -----------------------------------------------------------------------------
 # 2. 데이터 로드 및 전처리 함수 (파일 경로 및 오류 처리 강화)
 # -----------------------------------------------------------------------------
@@ -174,10 +196,6 @@ def load_and_process_data():
 # -----------------------------------------------------------------------------
 # 3. 데이터 로드 실행
 # -----------------------------------------------------------------------------
-# 5-4. 주제별 연간 추세의 순서 정의 (6-A에서 재사용)
-subject_order = ['총류', '철학', '종교', '사회과학', '순수과학', '기술과학', '예술', '언어', '문학', '역사']
-
-
 with st.spinner(f'5개년 엑셀 파일 정밀 분석 및 데이터 통합 중 (단위: {UNIT_LABEL} 적용)...'):
     df = load_and_process_data()
 
@@ -232,7 +250,7 @@ else:
     st.plotly_chart(fig_region_line, use_container_width=True)
     
 st.markdown("---")
-    
+
 # -------------------------------------------------------------
 # 5-2. 자료유형별 연간 추세 (Stacked Bar Chart 고정) - 자료 유형 필터 적용
 # -------------------------------------------------------------
@@ -320,8 +338,9 @@ st.markdown("---")
 st.markdown("### 주제별 연간 대출 추세 (Line Chart)")
 st.caption("필터 적용 기준: **주제 분야**")
 
-# 5-4 로컬 필터링 컨트롤러: 주제 분야 및 순서 정의 (6-A에서 재사용)
+# 5-4 로컬 필터링 컨트롤러: 주제 분야 및 순서 정의 (6-B에서 재사용)
 all_subjects = base_df['Subject'].unique()
+subject_order = ['총류', '철학', '종교', '사회과학', '순수과학', '기술과학', '예술', '언어', '문학', '역사']
 sorted_subjects = [s for s in subject_order if s in all_subjects]
 selected_subjects_5_4 = st.multiselect(
     "**주제 분야**를 선택하세요 (선택된 주제만 표시)",
@@ -380,136 +399,108 @@ detail_data = base_df[base_df['Year'] == target_year]
 
 if not detail_data.empty:
     
-    # -------------------------------------------------------------------------
-    # 6-A. 지역별 주제별 대출 분포 (요청에 따라 지역 순위 대체)
-    # -------------------------------------------------------------------------
-    st.markdown(f"### {target_year}년 지역별 주제 선호도 분석")
-    st.caption("선택한 **지역**의 대출 주제별 분포를 시각화합니다. 특정 **주제**를 선택하여 해당 분야의 대출 권수를 강조할 수 있습니다.")
-
-    # 6-A 인터랙티브 요소
-    all_regions_6A = sorted(detail_data['Region'].unique())
-    all_subjects_6A = subject_order # subject_order는 이미 5-4 이전에 정의됨
-
-    col_6A_region, col_6A_subject = st.columns([1, 1])
-
-    with col_6A_region:
-        selected_region_6A = st.selectbox(
-            "**1. 지역 선택**",
-            all_regions_6A,
-            index=all_regions_6A.index('서울') if '서울' in all_regions_6A else 0,
-            key='filter_region_6A'
-        )
-    with col_6A_subject:
-        selected_subject_6A = st.selectbox(
-            "**2. 강조할 주제 선택**",
-            ['전체 주제'] + all_subjects_6A,
-            index=0,
-            key='filter_subject_6A'
-        )
-
-    # 1. 데이터 필터링 및 집계 (선택된 지역만)
-    region_filtered_data = detail_data[detail_data['Region'] == selected_region_6A]
-    subject_distribution = region_filtered_data.groupby('Subject')['Count_Unit'].sum().reset_index()
-    # 순서를 subject_order로 명시하므로, 정렬은 필요 없음 (Category Order 사용)
+    # --- 6-A. 지역별 순위 --- (인구 10만 명당 순위)
+    st.markdown(f"### {target_year}년 지역별 대출 순위 (인구 10만 명당)")
+    st.caption("의미 강화: 절대 권수가 아닌 **인구 10만 명당 대출 권수**를 기준으로 순위를 매겨 지역별 비교의 의미를 높였습니다.")
     
-    # 2. 색상 정의 (강조할 주제를 구분)
-    # 모든 Subject의 기본 색상을 하나로 지정하고, 선택된 Subject만 다른 색상으로 지정합니다.
-    default_color = px.colors.qualitative.T10[0]
-    highlight_color = px.colors.qualitative.Vivid[2] 
+    regional_data_per_capita = detail_data.groupby('Region')['Count_Per_Capita'].sum().reset_index()
     
-    color_map = {subject: default_color for subject in subject_distribution['Subject']}
-    if selected_subject_6A != '전체 주제' and selected_subject_6A in color_map:
-        color_map[selected_subject_6A] = highlight_color # 강조 색상
-
-    # Plotly Express가 color 인수로 전달된 필드의 값에 따라 색상을 매핑하도록 함
-    # 이 경우 'Subject'가 color 인수로 사용되고, color_discrete_map에 Subject별 색상 맵을 전달합니다.
-
-    # 3. Bar Chart 생성
-    fig_subject_region = px.bar(
-        subject_distribution,
-        x='Subject',
-        y='Count_Unit',
-        color='Subject', 
-        title=f"**{target_year}년 {selected_region_6A}의 주제별 대출 분포**",
-        labels={'Count_Unit': f'대출 권수 ({UNIT_LABEL})', 'Subject': '주제'},
-        category_orders={"Subject": subject_order},
-        color_discrete_map=color_map 
+    fig_bar_regional = px.bar(
+        regional_data_per_capita.sort_values('Count_Per_Capita', ascending=False),
+        x='Region',
+        y='Count_Per_Capita',
+        color='Region',
+        title=f"지역별 인구 10만 명당 총 대출 권수 순위 ({target_year}년)",
+        labels={'Count_Per_Capita': '인구 10만 명당 대출 권수', 'Region': '지역'},
+        color_discrete_sequence=px.colors.qualitative.Bold
     )
-
-    fig_subject_region.update_xaxes(tickangle=45, categoryorder='array', categoryarray=subject_order)
-    fig_subject_region.update_yaxes(tickformat=',.0f')
-    fig_subject_region.update_layout(
-        showlegend=False, # 주제별 색상은 강조용이므로 범례 숨김
-        height=500
-    )
-    st.plotly_chart(fig_subject_region, use_container_width=True)
+    fig_bar_regional.update_yaxes(tickformat=',.0f')
+    st.plotly_chart(fig_bar_regional, use_container_width=True)
     st.markdown("---")
 
     # -------------------------------------------------------------------------
-    # 6-B. 다차원 산점도(Multi-dimensional Scatter Plot) - 기존 6-B가 됨
+    # 6-B. 다차원 산점도(Multi-dimensional Scatter Plot) - 인터랙티브 요소 강화
     # -------------------------------------------------------------------------
-    st.markdown(f"### {target_year}년 주제별/연령별 상세 분포 (다차원 산점도) - **연령대 기준**")
-    
-    col_filter, col_spacer = st.columns([1, 4])
-    with col_filter:
-        st.caption("시각화 기준: X(주제), Y(대출량), 크기(대출량), 색상(연령대), 모양(원형 통일)")
-    
-    # 그룹화: Subject와 Age 기준으로만 그룹화합니다. (Material 제외)
-    scatter_data = detail_data.groupby(['Subject', 'Age'])['Count_Unit'].sum().reset_index()
-    
+    st.markdown(f"### {target_year}년 주제별/연령별 상세 분포 (다차원 산점도) - **인터랙티브 분석**")
     st.caption("분석: 점의 크기와 Y축이 클수록 대출량이 많음을 의미하며, 색상으로 연령대를 구분합니다.")
     
-    # 다차원 산점도 (Scatter Plot) 생성
-    fig_multi_scatter = px.scatter(
-        scatter_data,
-        x='Subject', # X축: 주제
-        y='Count_Unit', # Y축: 대출 권수
-        color='Age', # 색상: 연령대 (어린이/청소년/성인)
-        size='Count_Unit', # 크기: 대출 권수 (양을 시각적으로 강조)
-        hover_data=['Count_Unit'],
-        title=f"{target_year}년 대출 상세 분포 (주제 x 대출량 x 연령대)",
-        labels={
-            'Count_Unit': f'총 대출 권수 ({UNIT_LABEL})',
-            'Subject': '주제',
-            'Age': '연령대'
-        },
-        category_orders={
-            "Age": ['어린이', '청소년', '성인'], # 연령대 순서 고정
-            "Subject": subject_order # 주제 순서 고정
-        },
-        color_discrete_sequence=px.colors.qualitative.Vivid # 연령대 시각화에 적합한 색상 팔레트 사용
-    )
-
-    # 산점도 점 크기 확대 및 스타일 조정
-    if not scatter_data.empty:
-        # 데이터의 최대 크기에 비례하여 sizeref 조정 (점의 최대 크기를 제어)
-        # 나누는 값(예: 4)을 작게 할수록 점이 커집니다. (기존 10 -> 4로 변경하여 크기 대폭 확대)
-        max_size = scatter_data['Count_Unit'].max()
-        sizeref_val = max_size / 4 if max_size > 0 else 1
-    else:
-        sizeref_val = 1
-        
-    fig_multi_scatter.update_traces(
-        marker=dict(
-            line=dict(width=1, color='DarkSlateGrey'), 
-            symbol='circle',
-            sizemode='area', # 영역 기준으로 크기 조정
-            sizeref=sizeref_val, # 크기 확대 (시각적 크기 기준점 낮춤)
-            sizemin=10 # 최소 크기 설정 (작은 값도 보이게, 기존 8 -> 10으로 변경)
-        ), 
-        opacity=0.8
-    )
-
-    # 축 레이블 회전 및 레이아웃 조정
-    fig_multi_scatter.update_xaxes(tickangle=45, categoryorder='array', categoryarray=subject_order)
-    fig_multi_scatter.update_yaxes(tickformat=',.0f')
-    fig_multi_scatter.update_layout(height=600, legend_title_text='범례')
+    # --- 인터랙티브 필터 추가 (요청 사항 반영) ---
+    col_sub_filter, col_age_filter = st.columns(2)
     
-    st.plotly_chart(fig_multi_scatter, use_container_width=True)
+    with col_sub_filter:
+        selected_subjects_6b = st.multiselect(
+            "산점도 표시 **주제 분야** 선택",
+            sorted_subjects,
+            default=['문학', '사회과학', '기술과학', '역사'], # 기본 선택 주제 변경
+            key='filter_subject_6b'
+        )
+    
+    with col_age_filter:
+        selected_ages_6b = st.multiselect(
+            "산점도 표시 **연령대** 선택",
+            all_ages,
+            default=all_ages,
+            key='filter_ages_6b'
+        )
+    # -----------------------------------------------
+
+    # 그룹화 및 필터링 적용
+    scatter_data = detail_data.groupby(['Subject', 'Age'])['Count_Unit'].sum().reset_index()
+    
+    filtered_scatter_data = scatter_data[
+        scatter_data['Subject'].isin(selected_subjects_6b) & 
+        scatter_data['Age'].isin(selected_ages_6b)
+    ]
+    
+    if filtered_scatter_data.empty:
+        st.warning("선택된 주제 및 연령대에 해당하는 데이터가 없습니다. 필터를 조정해 주세요.")
+    else:
+        # 다차원 산점도 (Scatter Plot) 생성
+        fig_multi_scatter = px.scatter(
+            filtered_scatter_data,
+            x='Subject', # X축: 주제
+            y='Count_Unit', # Y축: 대출 권수
+            color='Age', # 색상: 연령대 (어린이/청소년/성인)
+            size='Count_Unit', # 크기: 대출 권수 (양을 시각적으로 강조)
+            hover_data=['Count_Unit'],
+            title=f"{target_year}년 대출 상세 분포 (주제 x 대출량 x 연령대)",
+            labels={
+                'Count_Unit': f'총 대출 권수 ({UNIT_LABEL})',
+                'Subject': '주제',
+                'Age': '연령대'
+            },
+            category_orders={
+                "Age": ['어린이', '청소년', '성인'], # 연령대 순서 고정
+                "Subject": subject_order # 주제 순서 고정
+            },
+            color_discrete_sequence=px.colors.qualitative.Vivid # 연령대 시각화에 적합한 색상 팔레트 사용
+        )
+
+        # 산점도 점 크기 확대 및 스타일 조정
+        max_size = filtered_scatter_data['Count_Unit'].max()
+        sizeref_val = max_size / 4 if max_size > 0 else 1 # 나누는 값을 줄여 점 크기를 확대 (기존 10 -> 4)
+            
+        fig_multi_scatter.update_traces(
+            marker=dict(
+                line=dict(width=1, color='DarkSlateGrey'), 
+                symbol='circle',
+                sizemode='area', # 영역 기준으로 크기 조정
+                sizeref=sizeref_val, # 크기 확대 (시각적 크기 기준점 낮춤)
+                sizemin=10 # 최소 크기 설정 (작은 값도 보이게)
+            ), 
+            opacity=0.8
+        )
+
+        # 축 레이블 회전 및 레이아웃 조정
+        fig_multi_scatter.update_xaxes(tickangle=45, categoryorder='array', categoryarray=subject_order)
+        fig_multi_scatter.update_yaxes(tickformat=',.0f')
+        fig_multi_scatter.update_layout(height=600, legend_title_text='범례')
+        
+        st.plotly_chart(fig_multi_scatter, use_container_width=True)
     st.markdown("---")
 
     # -------------------------------------------------------------------------
-    # 6-C. Pie Chart (요청에 따라 3개 연령대별 자료 유형 비율로 변경) - 기존 6-C가 됨
+    # 6-C. Pie Chart (연령대별 자료 유형 비율)
     # -------------------------------------------------------------------------
     with st.container():
         st.markdown(f"### {target_year}년 연령대별 자료 유형 비율 분석 (3개 Pie Charts)")
@@ -551,3 +542,65 @@ if not detail_data.empty:
                 # 여백 조정
                 fig_pie.update_layout(margin=dict(t=50, b=0, l=0, r=0))
                 st.plotly_chart(fig_pie, use_container_width=True)
+
+# -------------------------------------------------------------
+# 7. 지역별 대출 현황 지리적 시각화 (버블 맵) - 요청 사항 추가
+# -------------------------------------------------------------
+st.subheader("3. 지역별 대출 현황 지리적 시각화")
+
+# 지도를 위한 데이터 준비 (인구당 대출 권수로 지역별 비교)
+map_data = base_df[base_df['Year'] == target_year].groupby('Region').agg(
+    Total_Count_Unit=('Count_Unit', 'sum'),
+    Total_Count_Per_Capita=('Count_Per_Capita', 'sum')
+).reset_index()
+
+# 좌표 데이터 병합
+map_data['lat'] = map_data['Region'].map(lambda x: KOREA_COORDS.get(x, {}).get('lat'))
+map_data['lon'] = map_data['Region'].map(lambda x: KOREA_COORDS.get(x, {}).get('lon'))
+
+# 결측치 제거 (좌표가 없는 지역은 지도에 표시하지 않음)
+map_data.dropna(subset=['lat', 'lon'], inplace=True)
+
+
+if map_data.empty:
+    st.warning(f"{target_year}년 지도 시각화에 필요한 지역 데이터(좌표)가 부족합니다.")
+else:
+    st.markdown(f"### {target_year}년 지역별 총 대출 현황 지도")
+    st.caption("분석: **버블 크기**는 총 대출 권수(**10만 권**), **색상**은 인구 10만 명당 대출 권수를 나타냅니다. 버블 크기가 잘 보이도록 키웠습니다.")
+    
+    # Plotly Express Scatter Mapbox (지리적 배경 지도 사용)
+    fig_map = px.scatter_mapbox(
+        map_data,
+        lat='lat',
+        lon='lon',
+        hover_name='Region',
+        color='Total_Count_Per_Capita', # 색상: 인구 10만 명당 대출 권수 (밀도)
+        size='Total_Count_Unit',      # 크기: 총 대출 권수 (절대량)
+        color_continuous_scale=px.colors.sequential.Viridis, # 색상 팔레트 적용
+        zoom=6, # 한반도 전체를 적절히 볼 수 있는 줌 레벨
+        center={"lat": 36.3, "lon": 127.8}, # 한반도 중심
+        mapbox_style="carto-positron", # 지리적 배경 스타일
+        title=f"{target_year}년 지역별 대출 권수 지도 시각화",
+        labels={
+            'Total_Count_Unit': f'총 대출 권수 ({UNIT_LABEL})', 
+            'Total_Count_Per_Capita': '인구 10만 명당 대출 권수'
+        }
+    )
+
+    # 마커 크기 조정 (요청에 따라 sizemin을 크게 설정하여 버블 크기 강조)
+    # sizemin을 30으로 설정하여 가장 작은 버블도 크게 보이도록 합니다. (기본값은 보통 1~10 사이)
+    fig_map.update_traces(
+        marker=dict(sizemin=30, opacity=0.8, line=dict(width=1, color='DarkSlateGrey')) 
+    )
+    
+    # 레이아웃 조정
+    fig_map.update_layout(
+        margin={"r":0,"t":50,"l":0,"b":0},
+        height=650,
+        coloraxis_colorbar=dict(
+            title="인구 10만 명당 대출 권수",
+            thicknessmode="pixels", thickness=20
+        )
+    )
+    
+    st.plotly_chart(fig_map, use_container_width=True)
