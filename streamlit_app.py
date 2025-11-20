@@ -405,7 +405,7 @@ if not detail_data.empty:
         x='Subject', # X축: 주제
         y='Count_Unit', # Y축: 대출 권수
         color='Material', # 색상: 자료 유형 (인쇄/전자)
-        symbol='Age',     # 심볼: 연령대 (어린이/청소년/성인)
+        symbol='Age',      # 심볼: 연령대 (어린이/청소년/성인)
         size='Count_Unit', # 크기: 대출 권수 (양을 시각적으로 강조)
         hover_data=['Count_Unit'],
         title=f"{target_year}년 대출 상세 분포 (주제 x 대출량 x 자료유형 x 연령대)",
