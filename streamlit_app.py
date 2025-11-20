@@ -4,6 +4,7 @@ import plotly.express as px
 import os
 import re
 from pathlib import Path
+import openpyxl
 
 # -----------------------------------------------------------------------------
 # 1. 설정 및 제목
