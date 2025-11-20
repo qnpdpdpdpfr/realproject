@@ -8,9 +8,9 @@ import sys
 # -----------------------------------------------------------------------------
 # 1. 설정 및 제목
 # -----------------------------------------------------------------------------
-st.set_page_config(page_title="공공도서관 대출 데이터 대시보드", layout="wide")
+st.set_page_config(page_title="공공도서관 대출 데이터 분석 대시보드", layout="wide")
 
-st.title("📚 공공도서관 대출 데이터 심층 분석")
+st.title("📚 공공도서관 대출 데이터 분석 대시보드")
 st.markdown("### 5개년(2020~2024) 대출 현황 인터랙티브 대시보드")
 st.markdown("---")
 
@@ -18,8 +18,7 @@ st.markdown("---")
 UNIT_DIVISOR = 100000
 UNIT_LABEL = '10만 권'
 
-# 2020~2024년 지역별 인구수 (단위: 만 명, 통계청 자료 기반 추정치)
-# 원본 코드와 동일하게 유지
+# 2020~2024년 지역별 인구수 (단위: 만 명, 통계청 자료 기반 추정치) - 이전과 동일
 REGION_POPULATION = {
     '서울': {2020: 980, 2021: 960, 2022: 950, 2023: 940, 2024: 935},
     '부산': {2020: 335, 2021: 330, 2022: 325, 2023: 320, 2024: 315},
@@ -46,7 +45,8 @@ REGION_POPULATION = {
 @st.cache_data
 def load_and_process_data():
     """
-    엑셀 파일을 로드하고 전처리하는 함수.
+    XLSX 파일을 로드하고 전처리하는 함수 (연도별 헤더 구조 반영).
+    사용자 피드백을 반영하여 2023년 이후 파일의 데이터 시작 위치를 조정했습니다.
     """
     files = [
         {'year': 2020, 'file': "2021('20년실적)도서관별통계입력데이터_공공도서관_(최종)_23.12.07..xlsx"},
@@ -57,56 +57,76 @@ def load_and_process_data():
     ]
     data_dir = "data"
     all_data = []
+    failed_files_list = []
     target_subjects = ['총류', '철학', '종교', '사회과학', '순수과학', '기술과학', '예술', '언어', '문학', '역사']
     target_ages = ['어린이', '청소년', '성인']
 
     for item in files:
-        file_name = item['file']
-        year = item['year']
-        file_path = os.path.join(data_dir, file_name)
+        file_path = os.path.join(data_dir, item['file'])
         
-        # 파일 존재 여부 확인 및 콘솔 로그 출력 (Streamlit 앱이 크래시해도 콘솔에 메시지는 남을 수 있음)
         if not os.path.exists(file_path): 
-            print(f"File not found or path incorrect: {file_path}")
+            failed_files_list.append(f"❌ {item['file']} (파일 없음)")
             continue
 
         try:
-            # 엑셀 파일 로드 및 초기 필터링
-            if year >= 2023:
-                # 2023년 이후 파일은 헤더 구조가 다름 (1행을 헤더로, 2행을 더 건너뜀)
-                df = pd.read_excel(file_path, engine='openpyxl', header=1)
-                df = df.iloc[2:].reset_index(drop=True)
+            # --- 1. 헤더 처리 및 데이터 로드 (XLSX) ---
+            if item['year'] >= 2023:
+                # 🚨 사용자 피드백 반영: 2023년 이후 파일 구조
+                # Header: 2행 (index 1), Data Start: 5행 (index 4)
+                df = pd.read_excel(file_path, engine='openpyxl', header=1) 
+                # header=1로 읽었을 때, 첫 데이터 행(Original Index 4)은 New Index 3에 위치함.
+                # 따라서 New Index 0, 1, 2 (Original Index 0, 2, 3)를 건너뛰어야 함.
+                df = df.iloc[3:].reset_index(drop=True)
+                print(f"File {item['file']} loaded with header=1 and iloc[3:]")
+
             else:
-                # 2022년 이전 파일
+                # 2022년 이전 파일 구조
+                # Header: 1행 (index 0), Data Start: 2행 (index 1) (기존 로직 유지)
                 df = pd.read_excel(file_path, engine='openpyxl', header=0)
+                # 이 로직은 헤더 바로 다음에 불필요한 행(e.g. 빈 행, 총계 행)이 하나 더 있다고 가정한 기존 로직입니다.
                 df = df.iloc[1:].reset_index(drop=True)
-
-            # 지역명 추출 (4번째 컬럼 가정 - 인덱스 3)
-            # 이 부분이 파일 구조 변경의 주된 원인이 될 수 있습니다.
-            df['Region_Fixed'] = df.iloc[:, 3].astype(str).str.strip()
-            df = df[df['Region_Fixed'] != 'nan']
+                print(f"File {item['file']} loaded with header=0 and iloc[1:]")
+                
+            # 2. **요약(총계) 행 필터링**
+            # 두 번째 컬럼(도서관명 또는 관련 정보)에 '총계', '합계', '계' 등의 키워드가 포함된 행 제거
+            if len(df.columns) > 1:
+                identifier_col = df.iloc[:, 1].astype(str).str.strip()
+                df = df[~identifier_col.str.contains('총계|합계|계', na=False, regex=True)]
             
-        except Exception as e:
-            # 파일 구조 문제(예: pd.read_excel 오류)가 발생하면 이 파일을 건너뜁니다.
-            print(f"Error processing {file_name} (Year {year}): {e}")
-            # 발생한 오류를 외부 try/except 블록에서 최종적으로 잡을 수 있도록 여기서 재발생시킬 수도 있습니다.
-            # 하지만 여기서는 개별 파일 처리 실패 시 계속 진행하도록 'continue'만 사용합니다.
-            continue
+            # 3. 지역 정보 고정 (지역 정보가 담긴 4번째 컬럼(index 3) 사용)
+            if len(df.columns) > 3:
+                df['Region_Fixed'] = df.iloc[:, 3].astype(str).str.strip()
+                # 지역 정보가 없는 (nan) 행도 제거
+                df = df[df['Region_Fixed'].str.lower() != 'nan']
+                df = df[df['Region_Fixed'] != '']
+            else:
+                raise ValueError("데이터프레임에 지역 정보(4번째 컬럼)가 충분하지 않습니다.")
 
-        # 데이터 추출 및 집계 로직
+        except Exception as e:
+            failed_files_list.append(f"❌ {item['file']} (읽기 실패: {type(e).__name__} - {e})")
+            print(f"Error processing file {item['file']}: {e}", file=sys.stderr)
+            continue
+        
+        # --- 4. 데이터 추출 및 집계 로직 ---
         extracted_rows = []
-        for col in df.columns:
-            col_str = str(col)
+        
+        # 컬럼 이름의 앞뒤 공백 제거 및 문자열 변환
+        cleaned_columns_map = {str(col).strip(): col for col in df.columns}
+        
+        for cleaned_col_name, original_col_name in cleaned_columns_map.items():
+            
             mat_type = ""
-            if '전자자료' in col_str: mat_type = "전자자료"
-            elif '인쇄자료' in col_str: mat_type = "인쇄자료"
+            if '전자자료' in cleaned_col_name: mat_type = "전자자료"
+            elif '인쇄자료' in cleaned_col_name: mat_type = "인쇄자료"
             else: continue
             
-            subject = next((s for s in target_subjects if s in col_str), None)
-            age = next((a for a in target_ages if a in col_str), None)
+            subject = next((s for s in target_subjects if s in cleaned_col_name), None)
+            age = next((a for a in target_ages if a in cleaned_col_name), None)
 
+            # 세 가지 키워드(자료유형, 주제, 연령)를 모두 포함하는 컬럼만 추출
             if subject and age and mat_type:
-                numeric_values = pd.to_numeric(df[col], errors='coerce').fillna(0)
+                # 원본 컬럼 이름을 사용하여 데이터프레임에서 값을 가져옵니다.
+                numeric_values = pd.to_numeric(df[original_col_name], errors='coerce').fillna(0)
                 temp_df = pd.DataFrame({'Region': df['Region_Fixed'], 'Value': numeric_values})
                 region_sums = temp_df.groupby('Region')['Value'].sum()
 
@@ -124,44 +144,45 @@ def load_and_process_data():
         if extracted_rows:
             year_df = pd.DataFrame(extracted_rows)
             all_data.append(year_df)
+        else:
+            failed_files_list.append(f"❌ {item['file']} (데이터 추출 실패: 유효 컬럼 없음)")
 
-    if not all_data: return pd.DataFrame()
+
+    if not all_data: return pd.DataFrame(), failed_files_list
         
     final_df = pd.concat(all_data, ignore_index=True)
     final_df['Count_Unit'] = final_df['Count'] / UNIT_DIVISOR
     
-    # 🚨 인구당 대출 권수 계산
+    # 인구당 대출 권수 계산
     def calculate_per_capita(row):
         year = row['Year']
         region = row['Region']
         count = row['Count']
-        population = REGION_POPULATION.get(region, {}).get(year, 1) * 10000
+        # 인구수: 만 명 * 10000 = 총 인구
+        population = REGION_POPULATION.get(region, {}).get(year, 1) * 10000 
+        # 인구 10만 명당 대출 권수 = (총 대출 권수 / 총 인구) * 100,000
         return count / population * 100000 if population > 0 else 0
         
     final_df['Count_Per_Capita'] = final_df.apply(calculate_per_capita, axis=1)
 
-    return final_df
+    return final_df, failed_files_list
+
 
 # -----------------------------------------------------------------------------
-# 3. 데이터 로드 실행 (외부 try/except로 에러 캡처 및 화면에 표시)
+# 3. 데이터 로드 실행
 # -----------------------------------------------------------------------------
 data_load_successful = False
 df = pd.DataFrame() # 초기 빈 DataFrame
+failed_files_list = []
 
 try:
-    with st.spinner(f'⏳ 5개년 엑셀 파일 정밀 분석 및 데이터 통합 중 (단위: {UNIT_LABEL} 적용)...'):
-        # 여기서 에러가 발생하면 아래 except 블록으로 이동합니다.
-        df = load_and_process_data() 
+    with st.spinner(f'⏳ 5개년 파일 정밀 분석 및 데이터 통합 중 (단위: {UNIT_LABEL} 적용)...'):
+        df, failed_files_list = load_and_process_data() 
     data_load_successful = True
 except Exception as e:
-    # 에러가 발생하면 스피너를 닫고 에러 메시지를 화면에 출력하여 사용자가 원인을 파악하도록 돕습니다.
-    st.error("🚨 **데이터 로드 중 치명적인 오류 발생** 🚨")
-    st.error(f"오류 유형: {type(e).__name__}")
+    # 예상치 못한 치명적인 시스템 오류
+    st.error("🚨 **데이터 로드 중 치명적인 시스템 오류 발생** 🚨")
     st.code(f"오류 메시지: {e}", language='python')
-    st.warning("1. **파일 경로 확인:** 'data' 폴더가 Streamlit 앱과 같은 위치에 있고 엑셀 파일 이름(대소문자 포함)이 코드와 일치하는지 확인하세요.")
-    st.warning("2. **엑셀 구조 확인:** 엑셀 파일 중 하나라도 헤더 행이나 지역 정보가 있는 4번째 컬럼의 위치가 변경되었는지 확인하세요.")
-    st.warning("3. **라이브러리 확인:** `pip install openpyxl`이 설치되었는지 확인하세요.")
-    # 오류 메시지를 표시하고 앱의 추가 실행을 중지합니다.
     st.stop() 
 
 
@@ -170,11 +191,27 @@ except Exception as e:
 # -----------------------------------------------------------------------------
 
 if data_load_successful:
-    # 데이터프레임이 비어있는 경우 (파일은 찾았으나 내부 처리 과정에서 유효 데이터가 0인 경우)
+    
+    # 파일 처리 결과 요약
+    if failed_files_list:
+        st.warning(f"⚠️ **일부 파일 처리 실패 ({len(failed_files_list)}개)**: 아래 목록을 확인하세요. 이 오류는 파일 이름 불일치 또는 데이터 구조 불일치로 발생할 수 있습니다.")
+        st.code("\n".join(failed_files_list), language='text')
+        
+    # 데이터프레임이 비어있는 경우 (파일을 읽었으나 유효 데이터가 0인 경우)
     if df.empty:
-        st.error("😭 데이터를 추출하지 못했습니다. 파일은 찾았으나, 내부 데이터 구조(컬럼 이름, 위치)를 확인해 주세요. (콘솔 로그 확인 필요)")
+        st.error("😭 **데이터를 추출하지 못했습니다.** 모든 파일에서 유효한 데이터를 찾지 못했습니다. 다음을 확인해 주세요:")
+        st.markdown("""
+        1. **파일 이름/경로:** `data` 폴더에 파일이 있고 이름이 코드에 지정된 파일명과 **정확히 일치**하는지 확인하세요.
+        2. **XLSX 시트 이름:** 파일 내 시트 이름이 기본값(`Sheet1` 또는 첫 번째 시트)이 아닌 경우, `pd.read_excel` 함수에 `sheet_name`을 지정해야 할 수 있습니다.
+        3. **컬럼 구조:**
+            * 각 파일의 **4번째 컬럼(인덱스 3)**에 '지역' 데이터가 있는지 확인하세요.
+            * 대출량 데이터 컬럼 이름에 '전자자료/인쇄자료', '총류/문학 등', '어린이/성인' 키워드가 모두 포함되어 있는지 확인하세요.
+        """)
         st.stop()
 
+    # 데이터가 있다면 시각화 시작
+    st.success(f"🎉 **총 {len(df['Year'].unique())}개 연도**의 데이터를 성공적으로 통합했습니다.")
+    
     base_df = df.copy()
 
     st.header("📊 대출 현황 분석")
@@ -471,8 +508,3 @@ if data_load_successful:
             )
             fig_pie.update_traces(textinfo='percent+label')
             st.plotly_chart(fig_pie, use_container_width=True)
-            
-            
-    # 6-1. 데이터 테이블
-    with st.expander("원본 추출 데이터 테이블 확인"):
-        st.dataframe(base_df.sort_values(by=['Year', 'Region', 'Subject']), use_container_width=True)
