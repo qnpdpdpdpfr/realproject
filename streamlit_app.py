@@ -53,6 +53,7 @@ def load_and_process_data():
     ]
     data_dir = "data"
     all_data = []
+    missing_files = [] # 누락된 파일 목록을 추적하기 위한 새로운 리스트
     target_subjects = ['총류', '철학', '종교', '사회과학', '순수과학', '기술과학', '예술', '언어', '문학', '역사']
     target_ages = ['어린이', '청소년', '성인']
 
@@ -62,11 +63,11 @@ def load_and_process_data():
         # 파일 존재 여부 확인 및 건너뛰기
         if not os.path.exists(file_path):
             print(f"File not found: {file_path}. Skipping.")
+            missing_files.append(item['file']) # 누락된 파일 목록에 추가
             continue
 
         try:
             # 1. pd.read_excel을 사용하여 데이터 로드 (사용자 요청 사항 반영)
-            # 파일 경로, 엔진('openpyxl'), 헤더 설정은 데이터 구조에 따라 유지합니다.
             if item['year'] >= 2023:
                 # 2023년 이후 파일은 헤더가 1번째 행, 데이터는 3번째 행부터 시작
                 df = pd.read_excel(file_path, engine='openpyxl', header=1)
@@ -77,7 +78,6 @@ def load_and_process_data():
                 df = df.iloc[1:].reset_index(drop=True)
 
             # 2. **핵심 수정: 요약(총계) 행 필터링** (정확한 합산을 위해 필수)
-            # 필터링하여 이중 합산을 방지하고, 상세 분석에 필요한 개별 도서관 데이터만 남깁니다.
             identifier_col = df.iloc[:, 1].astype(str).str.strip()
             # '총계', '합계', '계' 등의 키워드가 포함된 행 제거
             df = df[~identifier_col.str.contains('총계|합계|계', na=False, regex=True)]
@@ -126,7 +126,7 @@ def load_and_process_data():
             year_df = pd.DataFrame(extracted_rows)
             all_data.append(year_df)
 
-    if not all_data: return pd.DataFrame()
+    if not all_data: return pd.DataFrame(), missing_files # DataFrame과 누락 파일 목록 반환
         
     final_df = pd.concat(all_data, ignore_index=True)
     # 총계 행이 제거된 정확한 Count 값을 기반으로 단위 변환
@@ -144,20 +144,29 @@ def load_and_process_data():
         
     final_df['Count_Per_Capita'] = final_df.apply(calculate_per_capita, axis=1)
 
-    return final_df
+    return final_df, missing_files # DataFrame과 누락 파일 목록 반환
 
 # -----------------------------------------------------------------------------
 # 3. 데이터 로드 실행
 # -----------------------------------------------------------------------------
 with st.spinner(f'⏳ 5개년 엑셀 파일 정밀 분석 및 데이터 통합 중 (단위: {UNIT_LABEL} 적용)...'):
-    df = load_and_process_data()
+    df, missing_files = load_and_process_data() # 반환된 튜플을 언패킹
 
 # -----------------------------------------------------------------------------
 # 4. 시각화 시작
 # -----------------------------------------------------------------------------
 if df.empty:
-    # 에러 메시지 개선: 파일 경로와 정제 오류 가능성을 명시
-    st.error("😭 데이터를 추출하지 못했습니다. 'data' 폴더 내 엑셀 파일 경로와 이름을 확인하고, 데이터 정제 로직에 문제가 없는지 확인해 주세요.")
+    error_message = "😭 데이터를 추출하지 못했습니다."
+    
+    if missing_files:
+        # 누락된 파일이 있다면 명확하게 안내
+        error_message += f" **다음 파일들을 찾을 수 없습니다 (총 {len(missing_files)}개):**\n- " + "\n- ".join(missing_files)
+        error_message += "\n\n**⭐ 해결 방법:**\n1. `data` 폴더가 **streamlit_dashboard.py와 같은 위치**에 있는지 확인.\n2. 누락된 파일의 **이름**이 위 목록과 **정확히 일치**하는지 확인."
+    else:
+        # 파일은 찾았으나 데이터가 없는 경우
+        error_message += " 파일은 모두 로드되었으나, 내부 데이터 정제 과정에서 유효한 대출 데이터를 찾지 못했습니다. 엑셀 파일의 헤더 구조 또는 '총계' 행 필터링 로직을 확인해 주세요."
+
+    st.error(error_message)
     st.stop() 
 
 base_df = df.copy()
@@ -194,7 +203,7 @@ map_filtered_df = base_df[base_df['Region'].isin(selected_region_5_1)]
 if map_filtered_df.empty:
     st.warning("선택한 지역의 데이터가 없어 라인 차트를 표시할 수 없습니다. 필터를 조정해 주세요.")
 else:
-    # Aggregation with Raw_Count (이제 Raw_Count는 정확한 값이 반영됨)
+    # Aggregation with Raw_Count
     region_line_data = map_filtered_df.groupby(['Year', 'Region']).agg(
         Count_Unit=('Count_Unit', 'sum'),
         Raw_Count=('Count', 'sum')
@@ -511,7 +520,7 @@ if not detail_data.empty:
     fig_multi_scatter = px.scatter(
         scatter_data,
         x='Age',        
-        y='Count_Unit',    
+        y='Count_Unit',   
         color='Material',  
         size='Count_Unit', 
         size_max=70,       
