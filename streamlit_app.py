@@ -98,6 +98,13 @@ def load_and_process_data():
             if df.shape[1] > region_col_index:
                 df['Region_Fixed'] = df.iloc[:, region_col_index].astype(str).str.strip()
                 df = df[df['Region_Fixed'] != 'nan']
+                
+                # --- [CRITICAL FIX] 총계/합계 행 필터링 (이중 합산 방지) ---
+                summary_keywords = ['총계', '합계', '전체']
+                # Region_Fixed 컬럼에 '총계', '합계', '전체' 등의 키워드가 포함된 행을 제거
+                summary_filter = ~df['Region_Fixed'].str.contains('|'.join(summary_keywords), case=False, na=False)
+                df = df[summary_filter].reset_index(drop=True)
+                # -------------------------------------------------------------
             else:
                 st.error(f"**[처리 오류]** {item['year']}년 파일 '{file_name}'의 4번째 컬럼(index 3)에서 지역 데이터를 찾을 수 없습니다. 파일 구조를 확인해 주세요.")
                 continue
@@ -406,7 +413,7 @@ if not detail_data.empty:
         x='Subject', # X축: 주제
         y='Count_Unit', # Y축: 대출 권수
         color='Material', # 색상: 자료 유형 (인쇄/전자)
-        symbol='Age',      # 심볼: 연령대 (어린이/청소년/성인)
+        symbol='Age',     # 심볼: 연령대 (어린이/청소년/성인)
         size='Count_Unit', # 크기: 대출 권수 (양을 시각적으로 강조)
         hover_data=['Count_Unit'],
         title=f"{target_year}년 대출 상세 분포 (주제 x 대출량 x 자료유형 x 연령대)",
