@@ -58,9 +58,11 @@ def load_and_process_data():
 
     for item in files:
         file_path = os.path.join(data_dir, item['file'])
-        # 파일이 존재하는지 확인합니다. (가장 중요한 부분)
+        
+        # 파일이 존재하는지 확인합니다.
         if not os.path.exists(file_path): 
-            # 파일이 없으면 에러를 발생시키지 않고 건너뛰지만, 이 경우 all_data가 비어 에러가 뜸
+            # 🚨 디버깅을 위해 파일 경로를 출력합니다.
+            print(f"--- DEBUG: File not found: {file_path} ---") 
             continue
 
         try:
@@ -83,8 +85,8 @@ def load_and_process_data():
             df = df[df['Region_Fixed'] != 'nan']
 
         except Exception as e:
-            # 에러 발생 시 로그 출력
-            print(f"Error processing file {item['file']}: {e}")
+            # 파일 읽기 및 처리 중 발생한 예상치 못한 에러 로깅
+            print(f"--- DEBUG: Error processing file {item['file']} at path {file_path}: {e} ---")
             continue
         
         extracted_rows = []
@@ -121,6 +123,7 @@ def load_and_process_data():
             year_df = pd.DataFrame(extracted_rows)
             all_data.append(year_df)
 
+    # all_data가 비어있으면 데이터프레임이 비어있는 상태로 반환되어 오류 메시지가 뜸
     if not all_data: return pd.DataFrame()
         
     final_df = pd.concat(all_data, ignore_index=True)
@@ -151,11 +154,11 @@ with st.spinner(f'⏳ 5개년 엑셀 파일 정밀 분석 및 데이터 통합 �
 # 4. 시각화 시작
 # -----------------------------------------------------------------------------
 if df.empty:
-    # 이 에러가 발생했다면, 99% 확률로 'data' 폴더에 파일이 없거나 경로가 잘못된 것입니다.
+    # 데이터가 비어있으면 오류 메시지를 출력
     st.error("😭 데이터를 추출하지 못했습니다. 파일 경로를 확인해 주세요. (데이터 정제 오류 가능성 높음)")
     st.markdown("---")
     st.warning("🚨 **파일 경로 확인 안내:**")
-    st.markdown("`streamlit_dashboard.py` 파일과 **동일한 위치**에 `data` 폴더가 있고, 그 안에 5개의 모든 Excel 파일이 **정확한 이름으로** 들어있는지 확인해 주세요. 다른 컴퓨터로 옮길 때 폴더나 파일이 누락되었을 수 있습니다.")
+    st.markdown("`streamlit_dashboard.py` 파일과 **동일한 위치**에 `data` 폴더가 있고, 그 안에 5개의 모든 Excel 파일이 **정확한 이름으로** 들어있는지 터미널 출력(DEBUG 메시지)과 함께 확인해 주세요.")
     st.stop() 
 
 base_df = df.copy()
@@ -602,8 +605,3 @@ if not detail_data.empty:
             )
         )
         st.plotly_chart(fig_pie, use_container_width=True)
-        
-        
-# 6-1. 데이터 테이블
-with st.expander("원본 추출 데이터 테이블 확인"):
-    st.dataframe(base_df.sort_values(by=['Year', 'Region', 'Subject']), use_container_width=True)
