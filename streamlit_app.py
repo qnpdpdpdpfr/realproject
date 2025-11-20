@@ -43,13 +43,13 @@ REGION_POPULATION = {
 # -----------------------------------------------------------------------------
 @st.cache_data
 def load_and_process_data():
-    # 파일 목록을 요청하신 대로 단순화하여 수정했습니다.
+    # 파일 목록은 이전과 동일
     files = [
-        {'year': 2020, 'file': "2020_data.xlsx"},
-        {'year': 2021, 'file': "2021_data.xlsx"},
-        {'year': 2022, 'file': "2022_data.xlsx"},
-        {'year': 2023, 'file': "2023_data.xlsx"},
-        {'year': 2024, 'file': "2024_data.xlsx"}
+        {'year': 2020, 'file': "2021('20년실적)도서관별통계입력데이터_공공도서관_(최종)_23.12.07..xlsx"},
+        {'year': 2021, 'file': "2022년('21년 실적) 공공도서관 통계데이터 최종_23.12.06..xlsx"},
+        {'year': 2022, 'file': "2023년('22년 실적) 공공도서관 입력데이터_최종.xlsx"},
+        {'year': 2023, 'file': "2024년('23년 실적) 공공도서관 통계데이터_업로드용(2024.08.06).xlsx"},
+        {'year': 2024, 'file': "2025년(_24년 실적) 공공도서관 통계조사 결과(250729).xlsx"}
     ]
     data_dir = "data"
     all_data = []
@@ -58,20 +58,26 @@ def load_and_process_data():
 
     for item in files:
         file_path = os.path.join(data_dir, item['file'])
-        if not os.path.exists(file_path): continue
+        
+        # 파일 존재 여부 확인 및 건너뛰기
+        if not os.path.exists(file_path):
+            print(f"File not found: {file_path}. Skipping.")
+            continue
 
         try:
-            # 1. 헤더 처리 및 데이터 로드 (이전과 동일)
+            # 1. pd.read_excel을 사용하여 데이터 로드 (사용자 요청 사항 반영)
+            # 파일 경로, 엔진('openpyxl'), 헤더 설정은 데이터 구조에 따라 유지합니다.
             if item['year'] >= 2023:
+                # 2023년 이후 파일은 헤더가 1번째 행, 데이터는 3번째 행부터 시작
                 df = pd.read_excel(file_path, engine='openpyxl', header=1)
                 df = df.iloc[2:].reset_index(drop=True)
             else:
+                # 2022년 이전 파일은 헤더가 0번째 행, 데이터는 2번째 행부터 시작
                 df = pd.read_excel(file_path, engine='openpyxl', header=0)
                 df = df.iloc[1:].reset_index(drop=True)
 
-            # 2. **핵심 수정: 요약(총계) 행 필터링**
-            # 필터링하여 이중 합산을 방지하고, 상세 분석에 필요한 개별 도서관 데이터만 남김
-            # 이 필터링이 없으면 상세 항목별 합산 시 총계 값이 중복으로 더해짐
+            # 2. **핵심 수정: 요약(총계) 행 필터링** (정확한 합산을 위해 필수)
+            # 필터링하여 이중 합산을 방지하고, 상세 분석에 필요한 개별 도서관 데이터만 남깁니다.
             identifier_col = df.iloc[:, 1].astype(str).str.strip()
             # '총계', '합계', '계' 등의 키워드가 포함된 행 제거
             df = df[~identifier_col.str.contains('총계|합계|계', na=False, regex=True)]
@@ -82,10 +88,10 @@ def load_and_process_data():
             df = df[df['Region_Fixed'] != 'nan']
 
         except Exception as e:
-            # 에러 발생 시 로그 출력
-            print(f"Error processing file {item['file']}: {e}")
+            # 에러 발생 시 로그 출력 (어떤 파일에서 어떤 에러가 났는지 명확히 표시)
+            print(f"Error processing file {item['file']} using pd.read_excel: {e}")
             continue
-        
+            
         extracted_rows = []
         for col in df.columns:
             col_str = str(col)
@@ -150,7 +156,8 @@ with st.spinner(f'⏳ 5개년 엑셀 파일 정밀 분석 및 데이터 통합 �
 # 4. 시각화 시작
 # -----------------------------------------------------------------------------
 if df.empty:
-    st.error("😭 데이터를 추출하지 못했습니다. 파일 경로를 확인해 주세요. (데이터 정제 오류 가능성 높음)")
+    # 에러 메시지 개선: 파일 경로와 정제 오류 가능성을 명시
+    st.error("😭 데이터를 추출하지 못했습니다. 'data' 폴더 내 엑셀 파일 경로와 이름을 확인하고, 데이터 정제 로직에 문제가 없는지 확인해 주세요.")
     st.stop() 
 
 base_df = df.copy()
@@ -503,11 +510,11 @@ if not detail_data.empty:
     # 다차원 산점도 (Scatter Plot) 생성
     fig_multi_scatter = px.scatter(
         scatter_data,
-        x='Age',          
-        y='Count_Unit',   
-        color='Material', 
+        x='Age',        
+        y='Count_Unit',    
+        color='Material',  
         size='Count_Unit', 
-        size_max=70,      
+        size_max=70,       
         title=f"대출 상세 분포 (연령대 x 대출량 x 자료유형) ({target_year}년)",
         labels={
             'Count_Unit': f'총 대출 권수 ({UNIT_LABEL})',
@@ -594,8 +601,3 @@ if not detail_data.empty:
             )
         )
         st.plotly_chart(fig_pie, use_container_width=True)
-        
-        
-# 6-1. 데이터 테이블
-with st.expander("원본 추출 데이터 테이블 확인"):
-    st.dataframe(base_df.sort_values(by=['Year', 'Region', 'Subject']), use_container_width=True)
