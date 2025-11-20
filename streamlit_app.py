@@ -405,7 +405,7 @@ if not detail_data.empty:
     col_filter, col_spacer = st.columns([1, 4])
     with col_filter:
         st.caption("시각화 기준: X(주제), Y(대출량), 크기(대출량), 색상(연령대), 모양(원형 통일)")
-        
+    
     # 그룹화: Subject와 Age 기준으로만 그룹화합니다. (Material 제외)
     scatter_data = detail_data.groupby(['Subject', 'Age'])['Count_Unit'].sum().reset_index()
     
@@ -435,9 +435,9 @@ if not detail_data.empty:
     # 산점도 점 크기 확대 및 스타일 조정
     if not scatter_data.empty:
         # 데이터의 최대 크기에 비례하여 sizeref 조정 (점의 최대 크기를 제어)
-        # 나누는 값(예: 10)을 작게 할수록 점이 커집니다.
+        # 나누는 값(예: 4)을 작게 할수록 점이 커집니다. (기존 10 -> 4로 변경하여 크기 대폭 확대)
         max_size = scatter_data['Count_Unit'].max()
-        sizeref_val = max_size / 10 if max_size > 0 else 1
+        sizeref_val = max_size / 4 if max_size > 0 else 1
     else:
         sizeref_val = 1
         
@@ -447,7 +447,7 @@ if not detail_data.empty:
             symbol='circle',
             sizemode='area', # 영역 기준으로 크기 조정
             sizeref=sizeref_val, # 크기 확대 (시각적 크기 기준점 낮춤)
-            sizemin=8 # 최소 크기 설정 (작은 값도 보이게)
+            sizemin=10 # 최소 크기 설정 (작은 값도 보이게, 기존 8 -> 10으로 변경)
         ), 
         opacity=0.8
     )
