@@ -46,6 +46,7 @@ REGION_POPULATION = {
 # -----------------------------------------------------------------------------
 @st.cache_data
 def load_and_process_data():
+    # 파일 목록 정의 (파일 이름은 기존 코드와 동일하게 유지)
     files = [
         {'year': 2020, 'file': "2021('20년실적)도서관별통계입력데이터_공공도서관_(최종)_23.12.07..xlsx"},
         {'year': 2021, 'file': "2022년('21년 실적) 공공도서관 통계데이터 최종_23.12.06..xlsx"},
@@ -80,7 +81,6 @@ def load_and_process_data():
 
         try:
             # 엑셀 파일 로드 (header=0, 1은 엑셀 파일의 구조에 따라 다름)
-            # 2023년 이후 파일은 헤더가 두 줄인 경우가 많으므로 header=1을 사용하여 두 번째 줄을 컬럼 이름으로 사용합니다.
             if item['year'] >= 2023:
                 # 엑셀의 두 번째 행(index 1)을 헤더로 사용
                 df = pd.read_excel(file_to_use, engine='openpyxl', header=1)
@@ -124,7 +124,11 @@ def load_and_process_data():
             subject = next((s for s in target_subjects if s in col_str), None)
             age = next((a for a in target_ages if a in col_str), None)
 
+            # NOTE: 이전 코드에서 Material, Subject, Age가 모두 있을 때만 데이터를 추출했으나,
+            # 이번 요청에서는 Material을 사용하지 않는 산점도를 위해, 데이터 추출은 기존 로직을 따릅니다.
+            # 데이터프레임에는 Material 컬럼이 유지되어야 다른 차트가 정상 작동합니다.
             if subject and age and mat_type:
+                # pandas.to_numeric을 사용하여 숫자로 변환하고, 오류 발생 시 0으로 대체합니다.
                 numeric_values = pd.to_numeric(df[col], errors='coerce').fillna(0)
                 temp_df = pd.DataFrame({'Region': df['Region_Fixed'], 'Value': numeric_values})
                 region_sums = temp_df.groupby('Region')['Value'].sum()
@@ -373,69 +377,73 @@ detail_data = base_df[base_df['Year'] == target_year]
 
 if not detail_data.empty:
     
-    # --- 6-A. 지역별 순위 --- (인구 10만 명당 순위) - 요청에 따라 이 섹션을 제거합니다.
-    # st.markdown(f"### {target_year}년 지역별 대출 순위 (인구 10만 명당)")
-    # st.caption("의미 강화: 절대 권수가 아닌 **인구 10만 명당 대출 권수**를 기준으로 순위를 매겨 지역별 비교의 의미를 높였습니다.")
-    # 
-    # regional_data_per_capita = detail_data.groupby('Region')['Count_Per_Capita'].sum().reset_index()
-    # 
-    # fig_bar_regional = px.bar(
-    #     regional_data_per_capita.sort_values('Count_Per_Capita', ascending=False),
-    #     x='Region',
-    #     y='Count_Per_Capita',
-    #     color='Region',
-    #     title=f"지역별 인구 10만 명당 총 대출 권수 순위 ({target_year}년)",
-    #     labels={'Count_Per_Capita': '인구 10만 명당 대출 권수', 'Region': '지역'},
-    #     color_discrete_sequence=px.colors.qualitative.Bold
-    # )
-    # fig_bar_regional.update_yaxes(tickformat=',.0f')
-    # st.plotly_chart(fig_bar_regional, use_container_width=True)
-    # st.markdown("---") # 6-A 섹션 끝
+    # --- 6-A. 지역별 순위 --- (인구 10만 명당 순위)
+    st.markdown(f"### {target_year}년 지역별 대출 순위 (인구 10만 명당)")
+    st.caption("의미 강화: 절대 권수가 아닌 **인구 10만 명당 대출 권수**를 기준으로 순위를 매겨 지역별 비교의 의미를 높였습니다.")
     
-    # -------------------------------------------------------------------------
-    # 6-B. 다차원 산점도(Multi-dimensional Scatter Plot)로 교체
-    # (X=Subject, Y=Count, Color=Material, Size=Count) - 요청에 따라 'symbol' 제거 및 크기 증대
-    # -------------------------------------------------------------------------
-    st.markdown(f"### {target_year}년 주제별/연령별/자료유형별 상세 분포 (다차원 산점도)")
+    regional_data_per_capita = detail_data.groupby('Region')['Count_Per_Capita'].sum().reset_index()
     
-    col_material_filter, col_spacer = st.columns([1, 4])
-    with col_material_filter:
-        st.caption("시각화 기준: X(주제), Y(대출량), 크기(대출량), 색상(자료유형) (모양 통일, 크기 증대)") # 캡션 수정
+    fig_bar_regional = px.bar(
+        regional_data_per_capita.sort_values('Count_Per_Capita', ascending=False),
+        x='Region',
+        y='Count_Per_Capita',
+        color='Region',
+        title=f"지역별 인구 10만 명당 총 대출 권수 순위 ({target_year}년)",
+        labels={'Count_Per_Capita': '인구 10만 명당 대출 권수', 'Region': '지역'},
+        color_discrete_sequence=px.colors.qualitative.Bold
+    )
+    fig_bar_regional.update_yaxes(tickformat=',.0f')
+    st.plotly_chart(fig_bar_regional, use_container_width=True)
+    st.markdown("---")
+
+    # -------------------------------------------------------------------------
+    # 6-B. 다차원 산점도(Multi-dimensional Scatter Plot) - 요청에 따라 수정됨
+    # (X=Subject, Y=Count, Color=Age, Size=Count, Symbol=Circle)
+    # -------------------------------------------------------------------------
+    st.markdown(f"### {target_year}년 주제별/연령별 상세 분포 (다차원 산점도) - **연령대 기준**")
+    
+    col_filter, col_spacer = st.columns([1, 4])
+    with col_filter:
+        # NOTE: 자료 유형 필터는 요청에 따라 시각화에서 제외되었습니다.
+        st.caption("시각화 기준: X(주제), Y(대출량), 크기(대출량), 색상(연령대), 모양(원형 통일)")
         
-    # 그룹화 (Subject, Age, Material 기준)
-    scatter_data = detail_data.groupby(['Subject', 'Age', 'Material'])['Count_Unit'].sum().reset_index()
+    # 그룹화: Subject와 Age 기준으로만 그룹화합니다. (Material 제외)
+    # 이 과정에서 Material 컬럼의 데이터는 합산됩니다.
+    scatter_data = detail_data.groupby(['Subject', 'Age'])['Count_Unit'].sum().reset_index()
     
-    st.caption("분석: 점의 크기와 Y축이 클수록 대출량이 많음을 의미하며, 색상으로 자료유형을 구분합니다.")
+    st.caption("분석: 점의 크기와 Y축이 클수록 대출량이 많음을 의미하며, 색상으로 연령대를 구분합니다.")
     
     # 다차원 산점도 (Scatter Plot) 생성
     fig_multi_scatter = px.scatter(
         scatter_data,
         x='Subject', # X축: 주제
         y='Count_Unit', # Y축: 대출 권수
-        color='Material', # 색상: 자료 유형 (인쇄/전자)
-        # symbol='Age', # <<-- 요청에 따라 자료유형(Age)에 따른 모양(Symbol) 구분을 제거
+        color='Age', # 색상: 연령대 (어린이/청소년/성인) - 요청에 따라 수정
+        # symbol='Age', # 심볼 인자 제거 - 요청에 따라 수정
         size='Count_Unit', # 크기: 대출 권수 (양을 시각적으로 강조)
-        size_max=40, # <<-- 요청에 따라 원 크기를 키움 (최대 크기를 40으로 설정)
-        hover_data=['Count_Unit', 'Age', 'Material'], # Age와 Material을 hover data로 이동
-        title=f"{target_year}년 대출 상세 분포 (주제 x 대출량 x 자료유형 x 연령대)",
+        hover_data=['Count_Unit'],
+        title=f"{target_year}년 대출 상세 분포 (주제 x 대출량 x 연령대)",
         labels={
             'Count_Unit': f'총 대출 권수 ({UNIT_LABEL})',
             'Subject': '주제',
-            'Material': '자료유형',
             'Age': '연령대'
         },
         category_orders={
             "Age": ['어린이', '청소년', '성인'], # 연령대 순서 고정
             "Subject": subject_order # 주제 순서 고정
         },
-        color_discrete_sequence=px.colors.qualitative.Dark24
+        color_discrete_sequence=px.colors.qualitative.Vivid # 연령대 시각화에 적합한 색상 팔레트 사용
     )
 
     # 축 레이블 회전 및 레이아웃 조정
     fig_multi_scatter.update_xaxes(tickangle=45, categoryorder='array', categoryarray=subject_order)
     fig_multi_scatter.update_yaxes(tickformat=',.0f')
     fig_multi_scatter.update_layout(height=600, legend_title_text='범례')
-    fig_multi_scatter.update_traces(marker=dict(line=dict(width=1, color='DarkSlateGrey')), opacity=0.8)
+    
+    # 심볼을 원으로 통일하기 위해 marker.symbol을 'circle'로 명시적으로 설정하거나
+    # symbol 인자를 제거하여 기본값(circle)을 사용합니다.
+    # 여기서는 심볼 인자를 제거하고, 마커 스타일만 조정합니다.
+    fig_multi_scatter.update_traces(marker=dict(line=dict(width=1, color='DarkSlateGrey'), symbol='circle'), opacity=0.8)
 
     st.plotly_chart(fig_multi_scatter, use_container_width=True)
     st.markdown("---")
