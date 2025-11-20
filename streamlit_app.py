@@ -597,3 +597,8 @@ if not detail_data.empty:
             )
         )
         st.plotly_chart(fig_pie, use_container_width=True)
+        
+        
+# 6-1. 데이터 테이블
+with st.expander("원본 추출 데이터 테이블 확인"):
+    st.dataframe(base_df.sort_values(by=['Year', 'Region', 'Subject']), use_container_width=True)
