@@ -373,39 +373,39 @@ detail_data = base_df[base_df['Year'] == target_year]
 
 if not detail_data.empty:
     
-    # --- 6-A. 지역별 순위 --- (인구 10만 명당 순위)
-    st.markdown(f"### {target_year}년 지역별 대출 순위 (인구 10만 명당)")
-    st.caption("의미 강화: 절대 권수가 아닌 **인구 10만 명당 대출 권수**를 기준으로 순위를 매겨 지역별 비교의 의미를 높였습니다.")
+    # --- 6-A. 지역별 순위 --- (인구 10만 명당 순위) - 요청에 따라 이 섹션을 제거합니다.
+    # st.markdown(f"### {target_year}년 지역별 대출 순위 (인구 10만 명당)")
+    # st.caption("의미 강화: 절대 권수가 아닌 **인구 10만 명당 대출 권수**를 기준으로 순위를 매겨 지역별 비교의 의미를 높였습니다.")
+    # 
+    # regional_data_per_capita = detail_data.groupby('Region')['Count_Per_Capita'].sum().reset_index()
+    # 
+    # fig_bar_regional = px.bar(
+    #     regional_data_per_capita.sort_values('Count_Per_Capita', ascending=False),
+    #     x='Region',
+    #     y='Count_Per_Capita',
+    #     color='Region',
+    #     title=f"지역별 인구 10만 명당 총 대출 권수 순위 ({target_year}년)",
+    #     labels={'Count_Per_Capita': '인구 10만 명당 대출 권수', 'Region': '지역'},
+    #     color_discrete_sequence=px.colors.qualitative.Bold
+    # )
+    # fig_bar_regional.update_yaxes(tickformat=',.0f')
+    # st.plotly_chart(fig_bar_regional, use_container_width=True)
+    # st.markdown("---") # 6-A 섹션 끝
     
-    regional_data_per_capita = detail_data.groupby('Region')['Count_Per_Capita'].sum().reset_index()
-    
-    fig_bar_regional = px.bar(
-        regional_data_per_capita.sort_values('Count_Per_Capita', ascending=False),
-        x='Region',
-        y='Count_Per_Capita',
-        color='Region',
-        title=f"지역별 인구 10만 명당 총 대출 권수 순위 ({target_year}년)",
-        labels={'Count_Per_Capita': '인구 10만 명당 대출 권수', 'Region': '지역'},
-        color_discrete_sequence=px.colors.qualitative.Bold
-    )
-    fig_bar_regional.update_yaxes(tickformat=',.0f')
-    st.plotly_chart(fig_bar_regional, use_container_width=True)
-    st.markdown("---")
-
     # -------------------------------------------------------------------------
     # 6-B. 다차원 산점도(Multi-dimensional Scatter Plot)로 교체
-    # (X=Subject, Y=Count, Color=Material, Symbol=Age, Size=Count)
+    # (X=Subject, Y=Count, Color=Material, Size=Count) - 요청에 따라 'symbol' 제거 및 크기 증대
     # -------------------------------------------------------------------------
     st.markdown(f"### {target_year}년 주제별/연령별/자료유형별 상세 분포 (다차원 산점도)")
     
     col_material_filter, col_spacer = st.columns([1, 4])
     with col_material_filter:
-        st.caption("시각화 기준: X(주제), Y(대출량), 크기(대출량), 색상(자료유형), 모양(연령대)")
+        st.caption("시각화 기준: X(주제), Y(대출량), 크기(대출량), 색상(자료유형) (모양 통일, 크기 증대)") # 캡션 수정
         
     # 그룹화 (Subject, Age, Material 기준)
     scatter_data = detail_data.groupby(['Subject', 'Age', 'Material'])['Count_Unit'].sum().reset_index()
     
-    st.caption("분석: 점의 크기와 Y축이 클수록 대출량이 많음을 의미하며, 색상과 모양으로 자료유형 및 연령대를 구분합니다.")
+    st.caption("분석: 점의 크기와 Y축이 클수록 대출량이 많음을 의미하며, 색상으로 자료유형을 구분합니다.")
     
     # 다차원 산점도 (Scatter Plot) 생성
     fig_multi_scatter = px.scatter(
@@ -413,9 +413,10 @@ if not detail_data.empty:
         x='Subject', # X축: 주제
         y='Count_Unit', # Y축: 대출 권수
         color='Material', # 색상: 자료 유형 (인쇄/전자)
-        symbol='Age',     # 심볼: 연령대 (어린이/청소년/성인)
+        # symbol='Age', # <<-- 요청에 따라 자료유형(Age)에 따른 모양(Symbol) 구분을 제거
         size='Count_Unit', # 크기: 대출 권수 (양을 시각적으로 강조)
-        hover_data=['Count_Unit'],
+        size_max=40, # <<-- 요청에 따라 원 크기를 키움 (최대 크기를 40으로 설정)
+        hover_data=['Count_Unit', 'Age', 'Material'], # Age와 Material을 hover data로 이동
         title=f"{target_year}년 대출 상세 분포 (주제 x 대출량 x 자료유형 x 연령대)",
         labels={
             'Count_Unit': f'총 대출 권수 ({UNIT_LABEL})',
