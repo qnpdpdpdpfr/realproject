@@ -174,6 +174,10 @@ def load_and_process_data():
 # -----------------------------------------------------------------------------
 # 3. 데이터 로드 실행
 # -----------------------------------------------------------------------------
+# 5-4. 주제별 연간 추세의 순서 정의 (6-A에서 재사용)
+subject_order = ['총류', '철학', '종교', '사회과학', '순수과학', '기술과학', '예술', '언어', '문학', '역사']
+
+
 with st.spinner(f'5개년 엑셀 파일 정밀 분석 및 데이터 통합 중 (단위: {UNIT_LABEL} 적용)...'):
     df = load_and_process_data()
 
@@ -316,9 +320,8 @@ st.markdown("---")
 st.markdown("### 주제별 연간 대출 추세 (Line Chart)")
 st.caption("필터 적용 기준: **주제 분야**")
 
-# 5-4 로컬 필터링 컨트롤러: 주제 분야 및 순서 정의 (6-B에서 재사용)
+# 5-4 로컬 필터링 컨트롤러: 주제 분야 및 순서 정의 (6-A에서 재사용)
 all_subjects = base_df['Subject'].unique()
-subject_order = ['총류', '철학', '종교', '사회과학', '순수과학', '기술과학', '예술', '언어', '문학', '역사']
 sorted_subjects = [s for s in subject_order if s in all_subjects]
 selected_subjects_5_4 = st.multiselect(
     "**주제 분야**를 선택하세요 (선택된 주제만 표시)",
@@ -377,28 +380,73 @@ detail_data = base_df[base_df['Year'] == target_year]
 
 if not detail_data.empty:
     
-    # --- 6-A. 지역별 순위 --- (인구 10만 명당 순위)
-    st.markdown(f"### {target_year}년 지역별 대출 순위 (인구 10만 명당)")
-    st.caption("의미 강화: 절대 권수가 아닌 **인구 10만 명당 대출 권수**를 기준으로 순위를 매겨 지역별 비교의 의미를 높였습니다.")
+    # -------------------------------------------------------------------------
+    # 6-A. 지역별 주제별 대출 분포 (요청에 따라 지역 순위 대체)
+    # -------------------------------------------------------------------------
+    st.markdown(f"### {target_year}년 지역별 주제 선호도 분석")
+    st.caption("선택한 **지역**의 대출 주제별 분포를 시각화합니다. 특정 **주제**를 선택하여 해당 분야의 대출 권수를 강조할 수 있습니다.")
+
+    # 6-A 인터랙티브 요소
+    all_regions_6A = sorted(detail_data['Region'].unique())
+    all_subjects_6A = subject_order # subject_order는 이미 5-4 이전에 정의됨
+
+    col_6A_region, col_6A_subject = st.columns([1, 1])
+
+    with col_6A_region:
+        selected_region_6A = st.selectbox(
+            "**1. 지역 선택**",
+            all_regions_6A,
+            index=all_regions_6A.index('서울') if '서울' in all_regions_6A else 0,
+            key='filter_region_6A'
+        )
+    with col_6A_subject:
+        selected_subject_6A = st.selectbox(
+            "**2. 강조할 주제 선택**",
+            ['전체 주제'] + all_subjects_6A,
+            index=0,
+            key='filter_subject_6A'
+        )
+
+    # 1. 데이터 필터링 및 집계 (선택된 지역만)
+    region_filtered_data = detail_data[detail_data['Region'] == selected_region_6A]
+    subject_distribution = region_filtered_data.groupby('Subject')['Count_Unit'].sum().reset_index()
+    # 순서를 subject_order로 명시하므로, 정렬은 필요 없음 (Category Order 사용)
     
-    regional_data_per_capita = detail_data.groupby('Region')['Count_Per_Capita'].sum().reset_index()
+    # 2. 색상 정의 (강조할 주제를 구분)
+    # 모든 Subject의 기본 색상을 하나로 지정하고, 선택된 Subject만 다른 색상으로 지정합니다.
+    default_color = px.colors.qualitative.T10[0]
+    highlight_color = px.colors.qualitative.Vivid[2] 
     
-    fig_bar_regional = px.bar(
-        regional_data_per_capita.sort_values('Count_Per_Capita', ascending=False),
-        x='Region',
-        y='Count_Per_Capita',
-        color='Region',
-        title=f"지역별 인구 10만 명당 총 대출 권수 순위 ({target_year}년)",
-        labels={'Count_Per_Capita': '인구 10만 명당 대출 권수', 'Region': '지역'},
-        color_discrete_sequence=px.colors.qualitative.Bold
+    color_map = {subject: default_color for subject in subject_distribution['Subject']}
+    if selected_subject_6A != '전체 주제' and selected_subject_6A in color_map:
+        color_map[selected_subject_6A] = highlight_color # 강조 색상
+
+    # Plotly Express가 color 인수로 전달된 필드의 값에 따라 색상을 매핑하도록 함
+    # 이 경우 'Subject'가 color 인수로 사용되고, color_discrete_map에 Subject별 색상 맵을 전달합니다.
+
+    # 3. Bar Chart 생성
+    fig_subject_region = px.bar(
+        subject_distribution,
+        x='Subject',
+        y='Count_Unit',
+        color='Subject', 
+        title=f"**{target_year}년 {selected_region_6A}의 주제별 대출 분포**",
+        labels={'Count_Unit': f'대출 권수 ({UNIT_LABEL})', 'Subject': '주제'},
+        category_orders={"Subject": subject_order},
+        color_discrete_map=color_map 
     )
-    fig_bar_regional.update_yaxes(tickformat=',.0f')
-    st.plotly_chart(fig_bar_regional, use_container_width=True)
+
+    fig_subject_region.update_xaxes(tickangle=45, categoryorder='array', categoryarray=subject_order)
+    fig_subject_region.update_yaxes(tickformat=',.0f')
+    fig_subject_region.update_layout(
+        showlegend=False, # 주제별 색상은 강조용이므로 범례 숨김
+        height=500
+    )
+    st.plotly_chart(fig_subject_region, use_container_width=True)
     st.markdown("---")
 
     # -------------------------------------------------------------------------
-    # 6-B. 다차원 산점도(Multi-dimensional Scatter Plot) - 요청에 따라 수정됨
-    # (점 크기 확대)
+    # 6-B. 다차원 산점도(Multi-dimensional Scatter Plot) - 기존 6-B가 됨
     # -------------------------------------------------------------------------
     st.markdown(f"### {target_year}년 주제별/연령별 상세 분포 (다차원 산점도) - **연령대 기준**")
     
@@ -461,7 +509,7 @@ if not detail_data.empty:
     st.markdown("---")
 
     # -------------------------------------------------------------------------
-    # 6-C. Pie Chart (요청에 따라 3개 연령대별 자료 유형 비율로 변경)
+    # 6-C. Pie Chart (요청에 따라 3개 연령대별 자료 유형 비율로 변경) - 기존 6-C가 됨
     # -------------------------------------------------------------------------
     with st.container():
         st.markdown(f"### {target_year}년 연령대별 자료 유형 비율 분석 (3개 Pie Charts)")
