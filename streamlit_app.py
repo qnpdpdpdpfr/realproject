@@ -58,7 +58,10 @@ def load_and_process_data():
 
     for item in files:
         file_path = os.path.join(data_dir, item['file'])
-        if not os.path.exists(file_path): continue
+        # 파일이 존재하는지 확인합니다. (가장 중요한 부분)
+        if not os.path.exists(file_path): 
+            # 파일이 없으면 에러를 발생시키지 않고 건너뛰지만, 이 경우 all_data가 비어 에러가 뜸
+            continue
 
         try:
             # 1. 헤더 처리 및 데이터 로드 (이전과 동일)
@@ -70,8 +73,6 @@ def load_and_process_data():
                 df = df.iloc[1:].reset_index(drop=True)
 
             # 2. **핵심 수정: 요약(총계) 행 필터링**
-            # 필터링하여 이중 합산을 방지하고, 상세 분석에 필요한 개별 도서관 데이터만 남김
-            # 이 필터링이 없으면 상세 항목별 합산 시 총계 값이 중복으로 더해짐
             identifier_col = df.iloc[:, 1].astype(str).str.strip()
             # '총계', '합계', '계' 등의 키워드가 포함된 행 제거
             df = df[~identifier_col.str.contains('총계|합계|계', na=False, regex=True)]
@@ -98,11 +99,11 @@ def load_and_process_data():
             age = next((a for a in target_ages if a in col_str), None)
 
             if subject and age and mat_type:
-                # 숫자형으로 변환 및 NaN 처리: 비어 있거나 문자인 경우 0으로 처리
+                # 숫자형으로 변환 및 NaN 처리: 비어 있거나 문자인 경우 0으로 처리 (NaN 방지)
                 numeric_values = pd.to_numeric(df[col], errors='coerce').fillna(0)
                 temp_df = pd.DataFrame({'Region': df['Region_Fixed'], 'Value': numeric_values})
                 
-                # 지역별 합산 (총계 행 제거 후 개별 도서관 데이터만 정확하게 합산)
+                # 지역별 합산 
                 region_sums = temp_df.groupby('Region')['Value'].sum()
 
                 for region_name, val in region_sums.items():
@@ -150,7 +151,11 @@ with st.spinner(f'⏳ 5개년 엑셀 파일 정밀 분석 및 데이터 통합 �
 # 4. 시각화 시작
 # -----------------------------------------------------------------------------
 if df.empty:
+    # 이 에러가 발생했다면, 99% 확률로 'data' 폴더에 파일이 없거나 경로가 잘못된 것입니다.
     st.error("😭 데이터를 추출하지 못했습니다. 파일 경로를 확인해 주세요. (데이터 정제 오류 가능성 높음)")
+    st.markdown("---")
+    st.warning("🚨 **파일 경로 확인 안내:**")
+    st.markdown("`streamlit_dashboard.py` 파일과 **동일한 위치**에 `data` 폴더가 있고, 그 안에 5개의 모든 Excel 파일이 **정확한 이름으로** 들어있는지 확인해 주세요. 다른 컴퓨터로 옮길 때 폴더나 파일이 누락되었을 수 있습니다.")
     st.stop() 
 
 base_df = df.copy()
@@ -208,7 +213,7 @@ else:
         color_discrete_sequence=px.colors.qualitative.Bold,
         custom_data=['Raw_Count'] # Add raw count for hover
     )
-    # Custom Hover Template: Raw Count만 표시하도록 수정
+    # Custom Hover Template: Raw Count만 표시
     fig_region_line.update_traces(
         hovertemplate=(
             '<b>지역</b>: %{color}<br>' +
@@ -258,7 +263,7 @@ else:
         color_discrete_sequence=px.colors.qualitative.T10,
         custom_data=['Raw_Count']
     )
-    # Custom Hover Template: Raw Count만 표시하도록 수정
+    # Custom Hover Template: Raw Count만 표시
     fig_mat.update_traces(
         hovertemplate=(
             '<b>연도</b>: %{x}<br>' +
@@ -310,7 +315,7 @@ else:
         color_discrete_sequence=px.colors.qualitative.Vivid,
         custom_data=['Raw_Count']
     )
-    # Custom Hover Template: Raw Count만 표시하도록 수정
+    # Custom Hover Template: Raw Count만 표시
     fig_age_bar.update_traces(
         hovertemplate=(
             '<b>연도</b>: %{x}<br>' +
@@ -363,7 +368,7 @@ else:
         color_discrete_sequence=px.colors.qualitative.Dark24,
         custom_data=['Raw_Count']
     )
-    # Custom Hover Template: Raw Count만 표시하도록 수정
+    # Custom Hover Template: Raw Count만 표시
     fig_subject_line.update_traces(
         hovertemplate=(
             '<b>주제 분야</b>: %{color}<br>' +
@@ -434,7 +439,7 @@ if not detail_data.empty:
                     labels={'Count_Unit': f'대출 권수 ({UNIT_LABEL})', 'Material': '자료 유형'},
                     custom_data=['Raw_Count']
                 )
-                # Custom Hover Template: Raw Count만 표시하도록 수정
+                # Custom Hover Template: Raw Count만 표시
                 fig_pie_mat_pref.update_traces(
                     textinfo='percent+label',
                     hovertemplate=(
@@ -477,7 +482,7 @@ if not detail_data.empty:
         color_discrete_sequence=px.colors.qualitative.Pastel,
         custom_data=['Raw_Count']
     )
-    # Custom Hover Template: Raw Count만 표시하도록 수정
+    # Custom Hover Template: Raw Count만 표시
     fig_subj_pref.update_traces(
         hovertemplate=(
             '<b>주제 분야</b>: %{x}<br>' +
@@ -523,7 +528,7 @@ if not detail_data.empty:
         color_discrete_sequence=px.colors.qualitative.Dark24,
         custom_data=['Raw_Count']
     )
-    # Custom Hover Template: Raw Count만 표시하도록 수정
+    # Custom Hover Template: Raw Count만 표시
     fig_multi_scatter.update_traces(
         marker=dict(line=dict(width=1, color='DarkSlateGrey')), opacity=0.8,
         hovertemplate=(
@@ -586,7 +591,7 @@ if not detail_data.empty:
             color_discrete_sequence=colors,
             custom_data=['Raw_Count']
         )
-        # Custom Hover Template: Raw Count만 표시하도록 수정
+        # Custom Hover Template: Raw Count만 표시
         fig_pie.update_traces(
             textinfo='percent+label',
             hovertemplate=(
