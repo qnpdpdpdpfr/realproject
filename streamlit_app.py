@@ -389,9 +389,9 @@ detail_data = base_df[base_df['Year'] == target_year]
 
 if not detail_data.empty:
     
-    # --- 6-A. 지역별 주제 선호도 분석 (새로 추가됨) --- 
+    # --- 6-A. 지역별 주제 선호도 분석 (막대 차트 - 권수 기반으로 수정됨) --- 
     st.markdown(f"### {target_year}년 지역별 주제 선호도 분석 (막대 차트)")
-    st.caption("선택된 주제별로 각 지역의 대출 비율을 비교하여 지역별 선호 주제를 파악합니다.")
+    st.caption("선택된 주제별로 각 지역의 **대출 권수**를 비교하여 지역별 선호 주제의 절대량을 파악합니다. (단위: 10만 권)")
     
     # 주제 선택 인터랙티브 요소 (5-4의 순서와 동일하게 사용)
     selected_subjects_6a = st.multiselect(
@@ -404,33 +404,27 @@ if not detail_data.empty:
     if not selected_subjects_6a:
         st.warning("분석할 주제를 하나 이상 선택해 주세요.")
     else:
-        # 1. 전체 지역 대출 합계 (비율 계산을 위한 분모)
-        regional_total_loans = detail_data.groupby('Region')['Count_Unit'].sum().reset_index()
-        regional_total_loans.rename(columns={'Count_Unit': 'Total_Region_Loans'}, inplace=True)
-
-        # 2. 선택된 주제별 지역 대출 합계 (비율 계산을 위한 분자)
+        # --- 1. 선택된 주제 및 연도의 데이터만 필터링 ---
         subject_loan_data = detail_data[detail_data['Subject'].isin(selected_subjects_6a)]
-        subject_regional_sums = subject_loan_data.groupby(['Region', 'Subject'])['Count_Unit'].sum().reset_index()
+        
+        # --- 2. 지역 및 주제별 대출 권수 합계 계산 ---
+        # (단위: Count_Unit, 10만 권)
+        count_data = subject_loan_data.groupby(['Region', 'Subject'])['Count_Unit'].sum().reset_index()
 
-        # 3. 데이터 병합 및 선호도 비율 계산 (지역 총 대출량 대비 해당 주제 대출량의 비율)
-        preference_data = pd.merge(subject_regional_sums, regional_total_loans, on='Region', how='left')
-        
-        # 비율 계산: (주제 대출량 / 지역 총 대출량) * 100
-        preference_data['Preference_Ratio'] = (preference_data['Count_Unit'] / preference_data['Total_Region_Loans']) * 100
-        
         fig_bar_preference = px.bar(
-            preference_data,
+            count_data,
             x='Region',
-            y='Preference_Ratio',
+            y='Count_Unit', # 변경: 비율(%) 대신 대출 권수 (10만 권 단위) 사용
             color='Subject',
             barmode='group',
-            title=f"지역별 총 대출 대비 선택 주제 분야 대출 비율 ({target_year}년)",
-            labels={'Preference_Ratio': '대출 비율 (%)', 'Region': '지역', 'Subject': '주제'},
+            title=f"지역별 선택 주제 분야 대출 권수 비교 ({target_year}년)",
+            labels={'Count_Unit': f'대출 권수 ({UNIT_LABEL})', 'Region': '지역', 'Subject': '주제'}, # 레이블 수정
             category_orders={"Subject": selected_subjects_6a},
             color_discrete_sequence=px.colors.qualitative.Alphabet # 다채로운 팔레트 사용
         )
-        fig_bar_preference.update_yaxes(tickformat='.1%')
-        fig_bar_preference.update_layout(height=500, xaxis_title='지역', yaxis_title='총 대출 대비 비율 (%)')
+        # Y축 포맷 변경: 비율(%)에서 권수(쉼표 포맷)로 변경
+        fig_bar_preference.update_yaxes(tickformat=',.0f') 
+        fig_bar_preference.update_layout(height=500, xaxis_title='지역', yaxis_title=f'대출 권수 ({UNIT_LABEL})')
         st.plotly_chart(fig_bar_preference, use_container_width=True)
     st.markdown("---")
 
@@ -616,6 +610,3 @@ else:
     )
 
     st.plotly_chart(fig_map, use_container_width=True)
-
-st.markdown("---")
-st.markdown("### 분석 보고")
