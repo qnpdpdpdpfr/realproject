@@ -98,7 +98,7 @@ def load_and_process_data():
             age = next((a for a in target_ages if a in col_str), None)
 
             if subject and age and mat_type:
-                # 숫자형으로 변환 및 NaN 처리: 비어 있거나 문자인 경우 0으로 처리
+                # 숫자형으로 변환 및 NaN 처리
                 numeric_values = pd.to_numeric(df[col], errors='coerce').fillna(0)
                 temp_df = pd.DataFrame({'Region': df['Region_Fixed'], 'Value': numeric_values})
                 
@@ -123,7 +123,7 @@ def load_and_process_data():
     if not all_data: return pd.DataFrame()
         
     final_df = pd.concat(all_data, ignore_index=True)
-    # 총계 행이 제거된 정확한 Count 값을 기반으로 단위 변환 (차트 Y축 표시용)
+    # 총계 행이 제거된 정확한 Count 값을 기반으로 단위 변환
     final_df['Count_Unit'] = final_df['Count'] / UNIT_DIVISOR 
     
     # 인구당 대출 권수 계산 (이전과 동일)
@@ -162,11 +162,7 @@ st.header("📊 대출 현황 분석")
 # -------------------------------------------------------------
 overall_total_count = base_df['Count'].sum()
 overall_total_unit = overall_total_count / UNIT_DIVISOR
-
-# 상단 메트릭은 Raw Count로 표시
-st.subheader(f"✅ 전체 5개년 (2020년~2024년) 총 대출 권수: {overall_total_count:,.0f} 권") 
-# 10만 권 단위는 가독성을 위해 작은 글씨로 안내
-st.caption(f"이는 약 {overall_total_unit:,.2f} {UNIT_LABEL}에 해당합니다.")
+st.subheader(f"✅ 전체 5개년 (2020년~2024년) 총 대출 권수: {overall_total_unit:,.2f} {UNIT_LABEL}")
 st.markdown("---")
 
 st.subheader("1. 연도별 대출 추세 분석")
@@ -191,7 +187,7 @@ map_filtered_df = base_df[base_df['Region'].isin(selected_region_5_1)]
 if map_filtered_df.empty:
     st.warning("선택한 지역의 데이터가 없어 라인 차트를 표시할 수 없습니다. 필터를 조정해 주세요.")
 else:
-    # Aggregation with Raw_Count
+    # Aggregation with Raw_Count (이제 Raw_Count는 정확한 값이 반영됨)
     region_line_data = map_filtered_df.groupby(['Year', 'Region']).agg(
         Count_Unit=('Count_Unit', 'sum'),
         Raw_Count=('Count', 'sum')
@@ -208,13 +204,13 @@ else:
         color_discrete_sequence=px.colors.qualitative.Bold,
         custom_data=['Raw_Count'] # Add raw count for hover
     )
-    # Custom Hover Template: Raw Count만 표시하도록 수정
+    # Custom Hover Template (정확한 값 표시)
     fig_region_line.update_traces(
         hovertemplate=(
             '<b>지역</b>: %{color}<br>' +
             '<b>연도</b>: %{x}<br>' +
-            f'<b>총 대출 권수</b>: %{{customdata[0]:,.0f}} 권' +
-            '<extra></extra>' # Remove default trace info
+            f'<b>총 대출 권수</b>: %{{customdata[0]:,.0f}} 권<br>' +
+            f'<b>대출 권수 ({UNIT_LABEL})</b>: %{{y:.2f}} {UNIT_LABEL}<extra></extra>'
         )
     )
     fig_region_line.update_xaxes(type='category')
@@ -258,13 +254,13 @@ else:
         color_discrete_sequence=px.colors.qualitative.T10,
         custom_data=['Raw_Count']
     )
-    # Custom Hover Template: Raw Count만 표시하도록 수정
+    # Custom Hover Template (정확한 값 표시)
     fig_mat.update_traces(
         hovertemplate=(
             '<b>연도</b>: %{x}<br>' +
             '<b>자료 유형</b>: %{color}<br>' +
-            f'<b>총 대출 권수</b>: %{{customdata[0]:,.0f}} 권' +
-            '<extra></extra>' # Remove default trace info
+            f'<b>총 대출 권수</b>: %{{customdata[0]:,.0f}} 권<br>' +
+            f'<b>대출 권수 ({UNIT_LABEL})</b>: %{{y:.2f}} {UNIT_LABEL}<extra></extra>'
         )
     )
 
@@ -273,7 +269,8 @@ else:
     st.plotly_chart(fig_mat, use_container_width=True)
         
 st.markdown("---") 
-    
+
+
 # -------------------------------------------------------------
 # 5-3. 연령별 연간 추세 (Grouped Bar Chart)
 # -------------------------------------------------------------
@@ -310,13 +307,13 @@ else:
         color_discrete_sequence=px.colors.qualitative.Vivid,
         custom_data=['Raw_Count']
     )
-    # Custom Hover Template: Raw Count만 표시하도록 수정
+    # Custom Hover Template (정확한 값 표시)
     fig_age_bar.update_traces(
         hovertemplate=(
             '<b>연도</b>: %{x}<br>' +
             '<b>연령대</b>: %{color}<br>' +
-            f'<b>총 대출 권수</b>: %{{customdata[0]:,.0f}} 권' +
-            '<extra></extra>' # Remove default trace info
+            f'<b>총 대출 권수</b>: %{{customdata[0]:,.0f}} 권<br>' +
+            f'<b>대출 권수 ({UNIT_LABEL})</b>: %{{y:.2f}} {UNIT_LABEL}<extra></extra>'
         )
     )
 
@@ -363,13 +360,13 @@ else:
         color_discrete_sequence=px.colors.qualitative.Dark24,
         custom_data=['Raw_Count']
     )
-    # Custom Hover Template: Raw Count만 표시하도록 수정
+    # Custom Hover Template (정확한 값 표시)
     fig_subject_line.update_traces(
         hovertemplate=(
             '<b>주제 분야</b>: %{color}<br>' +
             '<b>연도</b>: %{x}<br>' +
-            f'<b>총 대출 권수</b>: %{{customdata[0]:,.0f}} 권' +
-            '<extra></extra>' # Remove default trace info
+            f'<b>총 대출 권수</b>: %{{customdata[0]:,.0f}} 권<br>' +
+            f'<b>대출 권수 ({UNIT_LABEL})</b>: %{{y:.2f}} {UNIT_LABEL}<extra></extra>'
         )
     )
 
@@ -434,14 +431,14 @@ if not detail_data.empty:
                     labels={'Count_Unit': f'대출 권수 ({UNIT_LABEL})', 'Material': '자료 유형'},
                     custom_data=['Raw_Count']
                 )
-                # Custom Hover Template: Raw Count만 표시하도록 수정
+                # Custom Hover Template (정확한 값 표시)
                 fig_pie_mat_pref.update_traces(
                     textinfo='percent+label',
                     hovertemplate=(
                         '<b>자료 유형</b>: %{label}<br>' +
                         f'<b>총 대출 권수</b>: %{{customdata[0]:,.0f}} 권<br>' +
-                        '<b>비율</b>: %{percent}' +
-                        '<extra></extra>' # Remove default trace info
+                        f'<b>대출 권수 ({UNIT_LABEL})</b>: %{{value:.2f}} {UNIT_LABEL}<br>' +
+                        '<b>비율</b>: %{percent}<extra></extra>'
                     )
                 )
 
@@ -477,13 +474,13 @@ if not detail_data.empty:
         color_discrete_sequence=px.colors.qualitative.Pastel,
         custom_data=['Raw_Count']
     )
-    # Custom Hover Template: Raw Count만 표시하도록 수정
+    # Custom Hover Template (정확한 값 표시)
     fig_subj_pref.update_traces(
         hovertemplate=(
             '<b>주제 분야</b>: %{x}<br>' +
             '<b>연령대</b>: %{color}<br>' +
-            f'<b>총 대출 권수</b>: %{{customdata[0]:,.0f}} 권' +
-            '<extra></extra>' # Remove default trace info
+            f'<b>총 대출 권수</b>: %{{customdata[0]:,.0f}} 권<br>' +
+            f'<b>대출 권수 ({UNIT_LABEL})</b>: %{{y:.2f}} {UNIT_LABEL}<extra></extra>'
         )
     )
 
@@ -523,14 +520,14 @@ if not detail_data.empty:
         color_discrete_sequence=px.colors.qualitative.Dark24,
         custom_data=['Raw_Count']
     )
-    # Custom Hover Template: Raw Count만 표시하도록 수정
+    # Custom Hover Template (정확한 값 표시)
     fig_multi_scatter.update_traces(
         marker=dict(line=dict(width=1, color='DarkSlateGrey')), opacity=0.8,
         hovertemplate=(
             '<b>연령대</b>: %{x}<br>' +
             '<b>자료유형</b>: %{color}<br>' +
-            f'<b>총 대출 권수</b>: %{{customdata[0]:,.0f}} 권' +
-            '<extra></extra>' # Remove default trace info
+            f'<b>총 대출 권수</b>: %{{customdata[0]:,.0f}} 권<br>' +
+            f'<b>대출 권수 ({UNIT_LABEL})</b>: %{{y:.2f}} {UNIT_LABEL}<extra></extra>'
         )
     )
 
@@ -586,14 +583,19 @@ if not detail_data.empty:
             color_discrete_sequence=colors,
             custom_data=['Raw_Count']
         )
-        # Custom Hover Template: Raw Count만 표시하도록 수정
+        # Custom Hover Template (정확한 값 표시)
         fig_pie.update_traces(
             textinfo='percent+label',
             hovertemplate=(
                 f'<b>{names_col}</b>: %{{label}}<br>' +
                 f'<b>총 대출 권수</b>: %{{customdata[0]:,.0f}} 권<br>' +
-                '<b>비율</b>: %{percent}' +
-                '<extra></extra>' # Remove default trace info
+                f'<b>대출 권수 ({UNIT_LABEL})</b>: %{{value:.2f}} {UNIT_LABEL}<br>' +
+                '<b>비율</b>: %{percent}<extra></extra>'
             )
         )
         st.plotly_chart(fig_pie, use_container_width=True)
+        
+        
+# 6-1. 데이터 테이블
+with st.expander("원본 추출 데이터 테이블 확인"):
+    st.dataframe(base_df.sort_values(by=['Year', 'Region', 'Subject']), use_container_width=True)
