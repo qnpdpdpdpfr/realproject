@@ -10,7 +10,8 @@ import openpyxl
 
 st.set_page_config(page_title="공공도서관 대출 데이터 대시보드", layout="wide")
 
-st.title("공공도서관 대출 데이터 심층 분석")
+# 요청 반영: 제목 앞에 책 이모지 추가
+st.title("📚 공공도서관 대출 데이터 심층 분석")
 st.markdown("### 5개년(2020~2024) 대출 현황 인터랙티브 대시보드")
 st.markdown("---")
 
@@ -197,20 +198,21 @@ if df.empty:
     st.stop()
 
 base_df = df.copy()
+all_regions = sorted(base_df['Region'].unique()) # 6-A를 위해 전역으로 정의
 
-st.header("대출 현황 분석")
-st.subheader("1. 연도별 대출 추세 분석")
+# 요청 반영: '대출 현황 분석' 헤더 제거 및 폰트 크기 확대
+st.header("1. 연도별 대출 추세 분석") 
     
 st.markdown("---")
 
 # -------------------------------------------------------------
 # 5-1. 지역별 연간 대출 추세 (라인 차트) - 지역 필터 적용
 # -------------------------------------------------------------
-st.markdown("### 지역별 연간 대출 추세 (라인 차트)")
+# 요청 반영: (라인 차트) 제거
+st.markdown("### 지역별 연간 대출 추세") 
 st.caption("필터 적용 기준: **지역**")
 
 # 5-1 로컬 필터링 컨트롤러: 지역
-all_regions = sorted(base_df['Region'].unique())
 selected_region_5_1 = st.multiselect(
     "**비교 대상 지역**을 선택하세요",
     all_regions,
@@ -285,7 +287,8 @@ st.markdown("---")
 # -------------------------------------------------------------
 # 5-3. 연령별 연간 추세 (Grouped Bar Chart) - 연령대 필터 적용
 # -------------------------------------------------------------
-st.markdown("### 연령별 연간 대출 추세 (Grouped Bar Chart)")
+# 요청 반영: (Grouped Bar Chart) 제거
+st.markdown("### 연령별 연간 대출 추세") 
 st.caption("필터 적용 기준: **연령대**")
 
 # 5-3 로컬 필터링 컨트롤러: 연령대
@@ -325,7 +328,8 @@ st.markdown("---")
 # -------------------------------------------------------------
 # 5-4. 주제별 연간 추세 (Line Chart) - 주제 분야 필터 적용
 # -------------------------------------------------------------
-st.markdown("### 주제별 연간 대출 추세 (Line Chart)")
+# 요청 반영: (Line Chart) 제거
+st.markdown("### 주제별 연간 대출 추세") 
 st.caption("필터 적용 기준: **주제 분야**")
 
 # 5-4 로컬 필터링 컨트롤러: 주제 분야 및 순서 정의 (6-A, 6-B에서 재사용)
@@ -364,14 +368,15 @@ st.markdown("---")
 
 
 # -------------------------------------------------------------
-# 6. 상세 분포 분석 (특정 연도)
+# 6. 상세 분포 분석 (특정 연도) - 요청 반영: 폰트 크기 확대
 # -------------------------------------------------------------
-st.subheader("2. 상세 분포 분석 (특정 연도)")
+st.header("2. 상세 분포 분석 (특정 연도)")
 
 # 6. 공통 연도 로컬 필터링 컨트롤러 (슬라이더 크기 개선)
 col_year_header, col_year_metric = st.columns([1, 4])
 with col_year_header:
-    st.header("기준 연도")
+    # 요청 반영: '기준 연도' 폰트 크기 축소
+    st.markdown("#### 기준 연도") 
 with col_year_metric:
     # 연도 슬라이더
     target_year = st.slider(
@@ -389,23 +394,101 @@ detail_data = base_df[base_df['Year'] == target_year]
 
 if not detail_data.empty:
     
-    # --- 6-A. 지역별 주제 선호도 분석 (막대 차트 - 권수 기반으로 수정됨) --- 
-    st.markdown(f"### {target_year}년 지역별 주제 선호도 분석 (막대 차트)")
+    # -------------------------------------------------------------
+    # 6-0. 지역별 대출 권수 지도 시각화 (요청 반영: 2. 상세 분포 분석의 첫 번째로 배치)
+    # -------------------------------------------------------------
+    # 요청 반영: '3. 지역별 분포 시각화' 헤더 제거
+    st.markdown(f"### {target_year}년 지역별 대출 권수 지도 시각화")
+    st.caption("분석: 지도 위 원의 크기가 클수록 총 대출 권수가 많음을 의미합니다. 지도 위의 표시 크기를 아주 키웠습니다.")
+
+    # 6-0. 데이터 준비 (지역별 총 대출 권수 합산)
+    map_data = base_df[base_df['Year'] == target_year].groupby('Region').agg({
+        'Count_Unit': 'sum',
+        'Latitude': 'first',
+        'Longitude': 'first'
+    }).reset_index()
+
+    if map_data.empty or map_data['Latitude'].isnull().any():
+        st.warning("지도 시각화를 위한 지역별 데이터 또는 좌표가 부족합니다.")
+    else:
+        # 6-0. Scatter Geo Plot (버블 맵) 생성
+        fig_map = px.scatter_geo(
+            map_data,
+            lat='Latitude',
+            lon='Longitude',
+            hover_name='Region',
+            size='Count_Unit',
+            color='Count_Unit',
+            projection='natural earth',
+            title=f'{target_year}년 지역별 총 대출 권수 분포',
+            labels={'Count_Unit': f'대출 권수 ({UNIT_LABEL})'},
+            color_continuous_scale=px.colors.sequential.Plasma, # 강렬한 색상 팔레트 사용
+            scope='asia'
+        )
+
+        # 지도 레이아웃 설정: 대한민국 주변에 집중하고 마커 크기를 키움
+        fig_map.update_geos(
+            fitbounds='locations', # 데이터가 있는 위치에 맞게 지도 범위 조정
+            visible=False,
+            showland=True,
+            landcolor="lightgray",
+            showcountries=True,
+            countrycolor="gray"
+        )
+        
+        # 지도 중앙점 설정 (서울 기준)
+        fig_map.update_layout(
+            geo=dict(
+                lataxis_range=[33, 39],
+                lonaxis_range=[124, 132],
+                center=dict(lat=36.3, lon=127.8),
+                projection_scale=8 # 지도 배율을 키워 대한민국을 확대
+            ),
+            height=700
+        )
+        
+        # 마커 크기 조정: size_max를 크게 설정하여 잘 보이도록 함
+        # sizeref 계산식을 사용하여 버블 크기를 시각적으로 조정합니다.
+        fig_map.update_traces(
+            marker=dict(sizemode='area', sizeref=2 * map_data['Count_Unit'].max() / (80**2), sizemin=5), 
+            selector=dict(mode='markers')
+        )
+
+        st.plotly_chart(fig_map, use_container_width=True)
+    st.markdown("---")
+
+    # --- 6-A. 지역별 주제 선호도 분석 (막대 차트) --- 
+    # 요청 반영: (막대 차트) 제거
+    st.markdown(f"### {target_year}년 지역별 주제 선호도 분석")
     st.caption("선택된 주제별로 각 지역의 **대출 권수**를 비교하여 지역별 선호 주제의 절대량을 파악합니다. (단위: 10만 권)")
     
-    # 주제 선택 인터랙티브 요소 (5-4의 순서와 동일하게 사용)
-    selected_subjects_6a = st.multiselect(
-        "**분석할 주제 분야**를 선택하세요",
-        sorted_subjects,
-        default=['문학', '사회과학', '기술과학'],
-        key='filter_subject_6a'
-    )
+    col_filter_6a_region, col_filter_6a_subject = st.columns(2)
+
+    with col_filter_6a_region:
+        # 요청 반영: 지역 선택 인터랙티브 요소 추가
+        selected_regions_6a = st.multiselect(
+            "**분석할 지역**을 선택하세요",
+            all_regions,
+            default=['서울', '경기', '부산', '대구', '세종'], # 기본값 설정
+            key='filter_region_6a'
+        )
     
-    if not selected_subjects_6a:
-        st.warning("분석할 주제를 하나 이상 선택해 주세요.")
+    with col_filter_6a_subject:
+        # 주제 선택 인터랙티브 요소 (5-4의 순서와 동일하게 사용)
+        selected_subjects_6a = st.multiselect(
+            "**분석할 주제 분야**를 선택하세요",
+            sorted_subjects,
+            default=['문학', '사회과학', '기술과학'],
+            key='filter_subject_6a'
+        )
+    
+    if not selected_subjects_6a or not selected_regions_6a:
+        st.warning("분석할 지역과 주제를 하나 이상 선택해 주세요.")
     else:
         # --- 1. 선택된 주제 및 연도의 데이터만 필터링 ---
         subject_loan_data = detail_data[detail_data['Subject'].isin(selected_subjects_6a)]
+        # 요청 반영: 지역 필터 적용
+        subject_loan_data = subject_loan_data[subject_loan_data['Region'].isin(selected_regions_6a)] 
         
         # --- 2. 지역 및 주제별 대출 권수 합계 계산 ---
         # (단위: Count_Unit, 10만 권)
@@ -430,7 +513,7 @@ if not detail_data.empty:
 
 
     # -------------------------------------------------------------------------
-    # 6-B. 다차원 산점도(Multi-dimensional Scatter Plot) - 점 크기 아주 키움 요청 반영
+    # 6-B. 다차원 산점도(Multi-dimensional Scatter Plot)
     # -------------------------------------------------------------------------
     st.markdown(f"### {target_year}년 주제별/연령별 상세 분포 (다차원 산점도) - **연령대 기준**")
     
@@ -462,10 +545,10 @@ if not detail_data.empty:
             "Age": ['어린이', '청소년', '성인'], # 연령대 순서 고정
             "Subject": subject_order # 주제 순서 고정
         },
-        color_discrete_map={ # 연령대별 색상 지정 (다채롭게 요청 반영)
+        color_discrete_map={ # 연령대별 색상 지정
             '어린이': 'rgb(255, 100, 100)',  # 밝은 빨강 계열
             '청소년': 'rgb(50, 200, 255)',   # 시원한 파랑 계열
-            '성인': 'rgb(100, 255, 100)'     # 밝은 녹색 계열
+            '성인': 'rgb(100, 255, 100)'    # 밝은 녹색 계열
         }
     )
 
@@ -484,7 +567,7 @@ if not detail_data.empty:
     st.markdown("---")
 
     # -------------------------------------------------------------------------
-    # 6-C. Pie Chart (연령별 자료 유형 선호도 분석) - 다채로운 팔레트 요청 반영
+    # 6-C. Pie Chart (연령별 자료 유형 선호도 분석)
     # -------------------------------------------------------------------------
     with st.container():
         st.markdown(f"### {target_year}년 연령별 자료 유형 선호도 분석")
@@ -493,7 +576,7 @@ if not detail_data.empty:
         # 분석 대상 연령대 정의
         age_groups_6c = ['어린이', '청소년', '성인']
         
-        # 각 연령대별 차트의 팔레트 정의 (다채롭게 요청 반영)
+        # 각 연령대별 차트의 팔레트 정의
         palette_map = {
             '어린이': px.colors.sequential.Sunset, # 따뜻한 계열
             '청소년': px.colors.sequential.Teal,   # 시원한 계열
@@ -546,67 +629,3 @@ if not detail_data.empty:
 
                 st.plotly_chart(fig_pie_age, use_container_width=True)
 st.markdown("---")
-
-# -------------------------------------------------------------
-# 7. 지역별 대출 권수 지도 시각화 (새로 추가됨)
-# -------------------------------------------------------------
-st.subheader("3. 지역별 분포 시각화")
-st.markdown(f"### {target_year}년 지역별 대출 권수 지도 시각화")
-st.caption("분석: 지도 위 원의 크기가 클수록 총 대출 권수가 많음을 의미합니다. 지도 위의 표시 크기를 아주 키웠습니다.")
-
-# 7-1. 데이터 준비 (지역별 총 대출 권수 합산)
-map_data = base_df[base_df['Year'] == target_year].groupby('Region').agg({
-    'Count_Unit': 'sum',
-    'Latitude': 'first',
-    'Longitude': 'first'
-}).reset_index()
-
-if map_data.empty or map_data['Latitude'].isnull().any():
-    st.warning("지도 시각화를 위한 지역별 데이터 또는 좌표가 부족합니다.")
-else:
-    # 7-2. Scatter Geo Plot (버블 맵) 생성
-    # 'South Korea'가 Plotly에서 인식하는 국가명이어야 합니다.
-    # scope='asia'를 사용하고, center를 대한민국 근처로 설정하여 시각화 범위를 조정합니다.
-    
-    fig_map = px.scatter_geo(
-        map_data,
-        lat='Latitude',
-        lon='Longitude',
-        hover_name='Region',
-        size='Count_Unit',
-        color='Count_Unit',
-        projection='natural earth',
-        title=f'{target_year}년 지역별 총 대출 권수 분포',
-        labels={'Count_Unit': f'대출 권수 ({UNIT_LABEL})'},
-        color_continuous_scale=px.colors.sequential.Plasma, # 강렬한 색상 팔레트 사용
-        scope='asia'
-    )
-
-    # 지도 레이아웃 설정: 대한민국 주변에 집중하고 마커 크기를 키움
-    fig_map.update_geos(
-        fitbounds='locations', # 데이터가 있는 위치에 맞게 지도 범위 조정
-        visible=False,
-        showland=True,
-        landcolor="lightgray",
-        showcountries=True,
-        countrycolor="gray"
-    )
-    
-    # 지도 중앙점 설정 (서울 기준)
-    fig_map.update_layout(
-        geo=dict(
-            lataxis_range=[33, 39],
-            lonaxis_range=[124, 132],
-            center=dict(lat=36.3, lon=127.8),
-            projection_scale=8 # 지도 배율을 키워 대한민국을 확대
-        ),
-        height=700
-    )
-    
-    # 마커 크기 조정: size_max를 크게 설정하여 잘 보이도록 함 (요청 반영)
-    fig_map.update_traces(
-        marker=dict(sizemode='area', sizeref=2 * max(map_data['Count_Unit']) / (80**2), sizemin=5), 
-        selector=dict(mode='markers')
-    )
-
-    st.plotly_chart(fig_map, use_container_width=True)
