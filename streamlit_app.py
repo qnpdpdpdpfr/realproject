@@ -398,17 +398,15 @@ if not detail_data.empty:
 
     # -------------------------------------------------------------------------
     # 6-B. 다차원 산점도(Multi-dimensional Scatter Plot) - 요청에 따라 수정됨
-    # (X=Subject, Y=Count, Color=Age, Size=Count, Symbol=Circle)
+    # (점 크기 확대)
     # -------------------------------------------------------------------------
     st.markdown(f"### {target_year}년 주제별/연령별 상세 분포 (다차원 산점도) - **연령대 기준**")
     
     col_filter, col_spacer = st.columns([1, 4])
     with col_filter:
-        # NOTE: 자료 유형 필터는 요청에 따라 시각화에서 제외되었습니다.
         st.caption("시각화 기준: X(주제), Y(대출량), 크기(대출량), 색상(연령대), 모양(원형 통일)")
         
     # 그룹화: Subject와 Age 기준으로만 그룹화합니다. (Material 제외)
-    # 이 과정에서 Material 컬럼의 데이터는 합산됩니다.
     scatter_data = detail_data.groupby(['Subject', 'Age'])['Count_Unit'].sum().reset_index()
     
     st.caption("분석: 점의 크기와 Y축이 클수록 대출량이 많음을 의미하며, 색상으로 연령대를 구분합니다.")
@@ -418,8 +416,7 @@ if not detail_data.empty:
         scatter_data,
         x='Subject', # X축: 주제
         y='Count_Unit', # Y축: 대출 권수
-        color='Age', # 색상: 연령대 (어린이/청소년/성인) - 요청에 따라 수정
-        # symbol='Age', # 심볼 인자 제거 - 요청에 따라 수정
+        color='Age', # 색상: 연령대 (어린이/청소년/성인)
         size='Count_Unit', # 크기: 대출 권수 (양을 시각적으로 강조)
         hover_data=['Count_Unit'],
         title=f"{target_year}년 대출 상세 분포 (주제 x 대출량 x 연령대)",
@@ -435,52 +432,74 @@ if not detail_data.empty:
         color_discrete_sequence=px.colors.qualitative.Vivid # 연령대 시각화에 적합한 색상 팔레트 사용
     )
 
+    # 산점도 점 크기 확대 및 스타일 조정
+    if not scatter_data.empty:
+        # 데이터의 최대 크기에 비례하여 sizeref 조정 (점의 최대 크기를 제어)
+        # 나누는 값(예: 10)을 작게 할수록 점이 커집니다.
+        max_size = scatter_data['Count_Unit'].max()
+        sizeref_val = max_size / 10 if max_size > 0 else 1
+    else:
+        sizeref_val = 1
+        
+    fig_multi_scatter.update_traces(
+        marker=dict(
+            line=dict(width=1, color='DarkSlateGrey'), 
+            symbol='circle',
+            sizemode='area', # 영역 기준으로 크기 조정
+            sizeref=sizeref_val, # 크기 확대 (시각적 크기 기준점 낮춤)
+            sizemin=8 # 최소 크기 설정 (작은 값도 보이게)
+        ), 
+        opacity=0.8
+    )
+
     # 축 레이블 회전 및 레이아웃 조정
     fig_multi_scatter.update_xaxes(tickangle=45, categoryorder='array', categoryarray=subject_order)
     fig_multi_scatter.update_yaxes(tickformat=',.0f')
     fig_multi_scatter.update_layout(height=600, legend_title_text='범례')
     
-    # 심볼을 원으로 통일하기 위해 marker.symbol을 'circle'로 명시적으로 설정하거나
-    # symbol 인자를 제거하여 기본값(circle)을 사용합니다.
-    # 여기서는 심볼 인자를 제거하고, 마커 스타일만 조정합니다.
-    fig_multi_scatter.update_traces(marker=dict(line=dict(width=1, color='DarkSlateGrey'), symbol='circle'), opacity=0.8)
-
     st.plotly_chart(fig_multi_scatter, use_container_width=True)
     st.markdown("---")
 
-    # --- 6-C. Pie Chart ---
+    # -------------------------------------------------------------------------
+    # 6-C. Pie Chart (요청에 따라 3개 연령대별 자료 유형 비율로 변경)
+    # -------------------------------------------------------------------------
     with st.container():
-        st.markdown(f"### {target_year}년 대출 비율 분석 (Pie Chart)")
-        st.caption("기준: 상단의 연도 슬라이더에 따라 비율이 변경됩니다.")
+        st.markdown(f"### {target_year}년 연령대별 자료 유형 비율 분석 (3개 Pie Charts)")
+        st.caption("분석 기준: 각 연령대 내에서 **인쇄 자료**와 **전자 자료**의 대출 비율을 비교합니다.")
         
-        # 6-C 로컬 필터링 컨트롤러: 기준 선택 (기존 유지)
-        pie_type = st.radio(
-            "비율 분석 기준 선택",
-            ('자료 유형 (인쇄/전자)', '연령대'),
-            key='pie_chart_criteria_6_C',
-            horizontal=True
-        )
+        ages_for_pie = ['어린이', '청소년', '성인']
+        cols_pie = st.columns(3) # 3개의 컬럼에 차트를 나란히 배치
 
-        if pie_type == '자료 유형 (인쇄/전자)':
-            pie_data = detail_data.groupby('Material')['Count_Unit'].sum().reset_index()
-            names_col = 'Material'
-            title = f"{target_year}년 자료 유형 (인쇄 vs 전자) 비율"
-            colors = px.colors.sequential.RdBu
-        else:
-            pie_data = detail_data.groupby('Age')['Count_Unit'].sum().reset_index()
-            names_col = 'Age'
-            title = f"{target_year}년 연령대별 대출 권수 비율"
-            colors = px.colors.qualitative.Vivid
+        color_sequences = {
+            '어린이': px.colors.sequential.RdBu,
+            '청소년': px.colors.sequential.Agsunset,
+            '성인': px.colors.sequential.Plasma
+        }
 
-        fig_pie = px.pie(
-            pie_data,
-            values='Count_Unit',
-            names=names_col,
-            title=title,
-            hole=.3,
-            labels={'Count_Unit': '대출 권수 비율'},
-            height=500,
-            color_discrete_sequence=colors
-        )
-        fig_pie.update_traces(textinfo='percent+label')
-        st.plotly_chart(fig_pie, use_container_width=True)
+        for i, age in enumerate(ages_for_pie):
+            with cols_pie[i]:
+                # 특정 연령대 데이터 필터링
+                age_data = detail_data[detail_data['Age'] == age]
+
+                if age_data.empty:
+                    st.warning(f"{age} 데이터 없음")
+                    continue
+
+                # Material (자료 유형: 인쇄 vs 전자) 기준으로 그룹화 및 합산
+                pie_data = age_data.groupby('Material')['Count_Unit'].sum().reset_index()
+                
+                # 해당 연령대에 대한 파이 차트 생성
+                fig_pie = px.pie(
+                    pie_data,
+                    values='Count_Unit',
+                    names='Material',
+                    title=f"**{age}** 대출 유형 비율",
+                    hole=.3,
+                    labels={'Count_Unit': '대출 권수 비율'},
+                    height=350, # 나란히 배치하기 위해 높이 조정
+                    color_discrete_sequence=color_sequences[age]
+                )
+                fig_pie.update_traces(textinfo='percent+label')
+                # 여백 조정
+                fig_pie.update_layout(margin=dict(t=50, b=0, l=0, r=0))
+                st.plotly_chart(fig_pie, use_container_width=True)
