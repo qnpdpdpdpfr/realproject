@@ -573,7 +573,7 @@ if not detail_data.empty:
         palette_map = {
             '어린이': px.colors.sequential.Sunset, # 따뜻한 계열
             '청소년': px.colors.sequential.Teal,   # 시원한 계열
-            '성인': px.colors.sequential.Set3   # 중립적 계열
+            '성인': px.colors.sequential.Purp   # 중립적 계열
         }
         
         # 세 개의 파이 차트를 나란히 표시하기 위해 컬럼 생성
