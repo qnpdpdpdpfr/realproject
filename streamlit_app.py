@@ -459,7 +459,7 @@ if not detail_data.empty:
     
     
     # --- 6-A. 지역별 주제 선호도 분석 (막대 차트 - 권수 기반으로 수정됨) --- 
-    st.markdown(f"### {target_year}년 지역별 주제 선호도 분석 (막대 차트)")
+    st.markdown(f"### {target_year}년 지역별 주제 선호도 분석")
     st.caption("선택된 주제별로 각 지역의 **대출 권수**를 비교하여 지역별 선호 주제의 절대량을 파악합니다. (단위: 10만 권)")
     
     # [변경 1: 지역 선택 필터 추가]
@@ -513,11 +513,8 @@ if not detail_data.empty:
     # -------------------------------------------------------------------------
     # 6-B. 다차원 산점도(Multi-dimensional Scatter Plot) - 점 크기 아주 키움 요청 반영
     # -------------------------------------------------------------------------
-    st.markdown(f"### {target_year}년 주제별/연령별 상세 분포 (다차원 산점도) - **연령대 기준**")
+    st.markdown(f"### {target_year}년 주제별/연령별 상세 분포 - **연령대 기준**")
     
-    col_filter, col_spacer = st.columns([1, 4])
-    with col_filter:
-        st.caption("시각화 기준: X(주제), Y(대출량), 크기(대출량), 색상(연령대), 모양(원형 통일)")
         
     # 그룹화: Subject와 Age 기준으로만 그룹화합니다. (Material 제외)
     scatter_data = detail_data.groupby(['Subject', 'Age'])['Count_Unit'].sum().reset_index()
