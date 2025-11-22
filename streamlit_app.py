@@ -400,7 +400,6 @@ if not detail_data.empty:
     # [변경 3: 지도 시각화를 2번 섹션의 가장 위로 이동]
     # -------------------------------------------------------------
     st.markdown(f"### {target_year}년 지역별 대출 권수 지도 시각화")
-    st.caption("분석: 지도 위 원의 크기가 클수록 총 대출 권수가 많음을 의미합니다. 지도 위의 표시 크기를 아주 키웠습니다.")
 
     # 7-1. 데이터 준비 (지역별 총 대출 권수 합산)
     map_data = base_df[base_df['Year'] == target_year].groupby('Region').agg({
