@@ -422,7 +422,7 @@ if not detail_data.empty:
             projection='natural earth',
             title=f'{target_year}년 지역별 총 대출 권수 분포',
             labels={'Count_Unit': f'대출 권수 ({UNIT_LABEL})'},
-            color_continuous_scale=px.colors.sequential.Plasma, # 강렬한 색상 팔레트 사용
+            color_continuous_scale=px.colors.sequential.Blues, 
             scope='asia'
         )
 
