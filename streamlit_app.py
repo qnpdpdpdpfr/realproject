@@ -275,7 +275,7 @@ else:
         barmode='stack',
         title=f"**자료유형별 연간 대출 총량 및 비율 변화**",
         labels={'Count_Unit': f'대출 권수 ({UNIT_LABEL})', 'Year': '연도'},
-        color_discrete_sequence=px.colors.qualitative.T10
+        color_discrete_sequence=px.colors.qualitative.Safe
     )
 
     fig_mat.update_xaxes(type='category')
