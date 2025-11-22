@@ -360,7 +360,7 @@ else:
         markers=True,
         title=f"**주제별 연간 대출 권수 변화**",
         labels={'Count_Unit': f'대출 권수 ({UNIT_LABEL})', 'Year': '연도'},
-        color_discrete_sequence=px.colors.qualitative.Dark24
+        color_discrete_sequence=px.colors.qualitative.Pastel
     )
     fig_subject_line.update_xaxes(type='category')
     fig_subject_line.update_yaxes(tickformat=',.0f')
