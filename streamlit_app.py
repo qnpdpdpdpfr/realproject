@@ -360,7 +360,7 @@ else:
         markers=True,
         title=f"**주제별 연간 대출 권수 변화**",
         labels={'Count_Unit': f'대출 권수 ({UNIT_LABEL})', 'Year': '연도'},
-        color_discrete_sequence=px.colors.qualitative.Pastel
+        color_discrete_sequence=px.colors.qualitative.Dark24
     )
     fig_subject_line.update_xaxes(type='category')
     fig_subject_line.update_yaxes(tickformat=',.0f')
@@ -500,7 +500,7 @@ if not detail_data.empty:
             title=f"지역별 선택 주제 분야 대출 권수 비교 ({target_year}년)",
             labels={'Count_Unit': f'대출 권수 ({UNIT_LABEL})', 'Region': '지역', 'Subject': '주제'}, # 레이블 수정
             category_orders={"Subject": selected_subjects_6a},
-            color_discrete_sequence=px.colors.qualitative.Set3 # 다채로운 팔레트 사용
+            color_discrete_sequence=px.colors.qualitative.Pastel # 다채로운 팔레트 사용
         )
         # Y축 포맷 변경: 비율(%)에서 권수(쉼표 포맷)로 변경
         fig_bar_preference.update_yaxes(tickformat=',.0f') 
