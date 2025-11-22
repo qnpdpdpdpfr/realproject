@@ -519,7 +519,6 @@ if not detail_data.empty:
     # 그룹화: Subject와 Age 기준으로만 그룹화합니다. (Material 제외)
     scatter_data = detail_data.groupby(['Subject', 'Age'])['Count_Unit'].sum().reset_index()
     
-    st.caption("분석: 점의 크기(**최대 100픽셀로 확대**)와 Y축이 클수록 대출량이 많음을 의미하며, 색상으로 연령대를 구분합니다.")
     
     # 다차원 산점도 (Scatter Plot) 생성
     fig_multi_scatter = px.scatter(
@@ -566,7 +565,7 @@ if not detail_data.empty:
     # -------------------------------------------------------------------------
     with st.container():
         st.markdown(f"### {target_year}년 연령별 자료 유형 선호도 분석")
-        st.caption("분석 기준: 각 연령대별로 **인쇄 자료**와 **전자 자료** 대출 비율을 비교합니다.")
+        st.caption("")
         
         # 분석 대상 연령대 정의
         age_groups_6c = ['어린이', '청소년', '성인']
