@@ -206,27 +206,53 @@ st.header("1. 연도별 대출 추세 분석")
     
 st.markdown("---")
 
-st.markdown("### 5개년 전체 대출 총량 추이 (영역형 차트)")
+# [신규 추가] 5-0. 전체 대출 총량 추이 (라인 차트)
+# -------------------------------------------------------------
+st.markdown("### 5개년 전체 대출 총량 추이")
 st.caption("2020년부터 2024년까지 전국 공공도서관의 총 대출 권수 변화를 보여줍니다.")
 
 # 전체 데이터 (Year 기준 합산)
 overall_trend_data = base_df.groupby('Year')['Count_Unit'].sum().reset_index()
 
-# **변경: px.line 대신 px.area 사용**
-fig_overall_area = px.area(
+# <<< Y축 범위 조정 로직 추가 시작 >>>
+# Y축 최소값과 최대값 계산 (변화가 잘 보이도록 범위를 좁힘)
+ymin = overall_trend_data['Count_Unit'].min()
+ymax = overall_trend_data['Count_Unit'].max()
+
+# 최소값에서 20%를 줄인 값 또는 0 중 더 큰 값을 최소값으로 설정 (0.01은 안전을 위한 최소값)
+y_range_min = max(ymin * 0.9, 0)
+# 최대값에서 5%를 늘린 값을 최대값으로 설정
+y_range_max = ymax * 1.05
+
+# y_range_min을 정수 단위로 내림 처리
+y_range_min = int(y_range_min // 1) 
+# y_range_max를 정수 단위로 올림 처리
+y_range_max = int(y_range_max // 1 + 1)
+# <<< Y축 범위 조정 로직 추가 끝 >>>
+
+
+fig_overall_line = px.line(
     overall_trend_data,
     x='Year',
     y='Count_Unit',
     markers=True,
-    title=f"**전체 공공도서관 5개년 대출 총량 추이 (영역형 차트)**",
+    title=f"**전체 공공도서관 5개년 대출 총량 추이**",
     labels={'Count_Unit': f'총 대출 권수 ({UNIT_LABEL})', 'Year': '연도'},
     color_discrete_sequence=['#FF7F0E'] # 단색 계열로 강조
 )
-fig_overall_area.update_xaxes(type='category')
-fig_overall_area.update_yaxes(tickformat=',.0f')
-st.plotly_chart(fig_overall_area, use_container_width=True)
+fig_overall_line.update_xaxes(type='category')
+
+# <<< Y축 범위 조정 적용 >>>
+fig_overall_line.update_yaxes(
+    tickformat=',.0f',
+    range=[y_range_min, y_range_max] # 계산된 범위 적용
+)
+# <<< Y축 범위 조정 적용 끝 >>>
+
+st.plotly_chart(fig_overall_line, use_container_width=True)
 
 st.markdown("---")
+
 
 # -------------------------------------------------------------
 # -------------------------------------------------------------
