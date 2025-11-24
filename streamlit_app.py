@@ -237,7 +237,7 @@ fig_overall_line = px.area(
     x='Year',
     y='Count_Unit',
     # markers=True, # 영역 차트이므로 markers는 제거합니다.
-    title=f"**전체 공공도서관 5개년 대출 총량 추이 (영역 차트)**",
+    title=f"전체 공공도서관 5개년 대출 총량 추이",
     labels={'Count_Unit': f'총 대출 권수 ({UNIT_LABEL})', 'Year': '연도'},
     color_discrete_sequence=['#FF7F0E'] # 단색 계열로 강조
 )
