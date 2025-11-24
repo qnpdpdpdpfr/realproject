@@ -206,7 +206,7 @@ st.header("1. 연도별 대출 추세 분석")
     
 st.markdown("---")
 
-# [신규 추가] 5-0. 전체 대출 총량 추이 (라인 차트)
+# [신규 추가] 5-0. 전체 대출 총량 추이 (라인 차트 -> 영역 차트로 변경됨)
 # -------------------------------------------------------------
 st.markdown("### 5개년 전체 대출 총량 추이")
 st.caption("2020년부터 2024년까지 전국 공공도서관의 총 대출 권수 변화를 보여줍니다.")
@@ -231,12 +231,13 @@ y_range_max = int(y_range_max // 1 + 1)
 # <<< Y축 범위 조정 로직 추가 끝 >>>
 
 
-fig_overall_line = px.line(
+# ***** 여기서 px.line을 px.area로 변경합니다. *****
+fig_overall_line = px.area(
     overall_trend_data,
     x='Year',
     y='Count_Unit',
-    markers=True,
-    title=f"**전체 공공도서관 5개년 대출 총량 추이**",
+    # markers=True, # 영역 차트이므로 markers는 제거합니다.
+    title=f"**전체 공공도서관 5개년 대출 총량 추이 (영역 차트)**",
     labels={'Count_Unit': f'총 대출 권수 ({UNIT_LABEL})', 'Year': '연도'},
     color_discrete_sequence=['#FF7F0E'] # 단색 계열로 강조
 )
@@ -252,6 +253,7 @@ fig_overall_line.update_yaxes(
 st.plotly_chart(fig_overall_line, use_container_width=True)
 
 st.markdown("---")
+
 
 
 # -------------------------------------------------------------
