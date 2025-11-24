@@ -206,6 +206,31 @@ st.header("1. 연도별 대출 추세 분석")
     
 st.markdown("---")
 
+# [신규 추가] 5-0. 전체 대출 총량 추이 (라인 차트)
+# -------------------------------------------------------------
+st.markdown("### 5개년 전체 대출 총량 추이")
+st.caption("2020년부터 2024년까지 전국 공공도서관의 총 대출 권수 변화를 보여줍니다.")
+
+# 전체 데이터 (Year 기준 합산)
+overall_trend_data = base_df.groupby('Year')['Count_Unit'].sum().reset_index()
+
+fig_overall_line = px.line(
+    overall_trend_data,
+    x='Year',
+    y='Count_Unit',
+    markers=True,
+    title=f"**전체 공공도서관 5개년 대출 총량 추이**",
+    labels={'Count_Unit': f'총 대출 권수 ({UNIT_LABEL})', 'Year': '연도'},
+    color_discrete_sequence=['#FF7F0E'] # 단색 계열로 강조
+)
+fig_overall_line.update_xaxes(type='category')
+fig_overall_line.update_yaxes(tickformat=',.0f')
+st.plotly_chart(fig_overall_line, use_container_width=True)
+
+st.markdown("---")
+
+
+# -------------------------------------------------------------
 # -------------------------------------------------------------
 # 5-1. 지역별 연간 대출 추세 (라인 차트) - 지역 필터 적용
 # -------------------------------------------------------------
