@@ -285,7 +285,7 @@ else:
         y='Count_Unit',
         color='Region',
         markers=True,
-        title=f"**선택 지역별 연간 대출 권수 변화**",
+        title=f"선택 지역별 연간 대출 권수 변화",
         labels={'Count_Unit': f'대출 권수 ({UNIT_LABEL})', 'Year': '연도'},
         color_discrete_sequence=px.colors.qualitative.Bold
     )
@@ -324,7 +324,7 @@ else:
         y='Count_Unit',
         color='Material',
         barmode='stack',
-        title=f"**자료유형별 연간 대출 총량 및 비율 변화**",
+        title=f"자료유형별 연간 대출 총량 및 비율 변화",
         labels={'Count_Unit': f'대출 권수 ({UNIT_LABEL})', 'Year': '연도'},
         color_discrete_sequence=px.colors.qualitative.Safe
     )
@@ -366,7 +366,7 @@ else:
         y='Count_Unit',
         color='Age',
         barmode='group',
-        title=f"**연령별 연간 대출 권수 비교**",
+        title=f"연령별 연간 대출 권수 비교",
         labels={'Count_Unit': f'대출 권수 ({UNIT_LABEL})', 'Year': '연도'},
         category_orders={"Age": ['어린이', '청소년', '성인']},
         color_discrete_sequence=px.colors.qualitative.Vivid
@@ -409,7 +409,7 @@ else:
         y='Count_Unit',
         color='Subject',
         markers=True,
-        title=f"**주제별 연간 대출 권수 변화**",
+        title=f"주제별 연간 대출 권수 변화",
         labels={'Count_Unit': f'대출 권수 ({UNIT_LABEL})', 'Year': '연도'},
         color_discrete_sequence=px.colors.qualitative.Dark24
     )
@@ -655,7 +655,7 @@ if not detail_data.empty:
                     material_pie_data,
                     values='Count_Unit',
                     names='Material',
-                    title=f"**{age}** ({target_year}년)",
+                    title=f"{age} ({target_year}년)",
                     hole=.4, # 도넛 형태로 표시
                     labels={'Count_Unit': '대출 권수 비율'},
                     height=450,
