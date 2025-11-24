@@ -655,7 +655,7 @@ if not detail_data.empty:
                     material_pie_data,
                     values='Count_Unit',
                     names='Material',
-                    title=f"{age} ({target_year}년)",
+                    title=f"{age}",
                     hole=.4, # 도넛 형태로 표시
                     labels={'Count_Unit': '대출 권수 비율'},
                     height=450,
